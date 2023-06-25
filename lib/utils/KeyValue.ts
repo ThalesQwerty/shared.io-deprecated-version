@@ -1,3 +1,1 @@
-export type KeyValue<T = any, K extends string|number|symbol = string> = {
-    [key in K]: T
-}
+export type KeyValue<T = any, K extends string|number|symbol = string> = Record<K, T>;

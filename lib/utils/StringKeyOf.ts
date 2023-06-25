@@ -1,0 +1,1 @@
+export type StringKeyOf<T = any> = keyof T extends string ? keyof T : never
