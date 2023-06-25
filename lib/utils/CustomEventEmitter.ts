@@ -1,17 +1,16 @@
 import { EventEmitter } from "node:events";
+import { KeyValue } from "./KeyValue";
+export class CustomEventEmitter<EventList extends KeyValue> extends EventEmitter {
+};
 
-export type GenericEventList = {[event: string|symbol]: ((parameters: any) => void)};
-
-export class CustomEventEmitter<EventList extends GenericEventList> extends EventEmitter {}
-
-export interface CustomEventEmitter<EventList extends GenericEventList> extends EventEmitter {
-    on: <name extends keyof EventList>(event: name, listener: EventList[name]) => this;
-    once: <name extends keyof EventList>(event: name, listener: EventList[name]) => this;
-    addListener: <name extends keyof EventList>(event: name, listener: EventList[name]) => this;
-    removeListener: <name extends keyof EventList>(event: name, listener: EventList[name]) => this;
-    prependListener: <name extends keyof EventList>(event: name, listener: EventList[name]) => this;
-    emit: (event: keyof EventList, parameters: (Parameters<EventList[typeof event]>[0])) => boolean;
-    removeAllListeners: (event?: keyof EventList) => this;
+export interface CustomEventEmitter<EventList extends KeyValue> extends EventEmitter {
+    on: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
+    once: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
+    addListener: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
+    removeListener: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
+    prependListener: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
+    emit: <name extends keyof EventList>(event: name extends string ? name : symbol, parameters: EventList[name]) => boolean;
+    removeAllListeners: <name extends keyof EventList>(event?: name extends string ? name : symbol) => this;
 }
 
-export type CustomEvent<CustomEventList extends GenericEventList, name extends keyof CustomEventList> = Parameters<CustomEventList[name]>[0];
+export type CustomEvent<CustomEventList extends KeyValue, name extends keyof CustomEventList> = CustomEventList[name];
