@@ -72,7 +72,7 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
     /**
      * Generates a new copy of this group
      */
-    copy() {
+    clone() {
         return new Group(...this.array);
     }
 
@@ -146,11 +146,21 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
         return this._locked;
     }
     private _locked = false;
-    protected lock() {
+
+    /**
+     * Prevents this group from being further altered
+     */
+    public lock() {
         this._locked = true;
+        return this;
     }
-    protected unlock() {
+
+    /**
+     * Re-allows this group from being further altered
+     */
+    public unlock() {
         this._locked = false;
+        return this;
     }
 
     /**

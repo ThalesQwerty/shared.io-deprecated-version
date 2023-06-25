@@ -23,8 +23,13 @@ export class Channel extends WatchedObject<object, ChannelEvents> {
         return this.constructor.name;
     }
 
+    /**
+     * Random unique and universal identifier string for this channel.
+     */
     public readonly id = UUID();
-    public readonly users = new UserGroup();
+
+
+    public readonly users = new UserGroup().lock();
 
     constructor(public readonly server: Server) {
         super(undefined, ["server"]);

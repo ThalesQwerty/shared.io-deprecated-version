@@ -83,8 +83,8 @@ const WatchedObject = class WatchedObject extends CustomEventEmitter<WatchedObje
 
                 return isObject ? (children[key] ??= createChild(key, value))
                     : isFunction ? (children[key] ??= new Proxy(value, {
-                        apply: (target: Function, thisArg: object, parameters: any[]) => {
-                            const returnedValue = target.apply(thisArg, parameters);
+                        apply: (method: Function, thisArg: object, parameters: any[]) => {
+                            const returnedValue = method.apply(thisArg, parameters);
                             this.emit("call", {
                                 key,
                                 parameters,
