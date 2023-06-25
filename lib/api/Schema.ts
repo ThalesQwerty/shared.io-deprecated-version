@@ -1,17 +1,22 @@
 import { KeyValue } from "../utils";
+import { BuiltinUserGroup } from "./UserGroup";
 
 export interface EntitySchema {
     type: string;
     properties: KeyValue<EntityPropertySchema>;
-    userGroups: UserListSchema[]
+    userGroups: string[]
 }
 
-export type UserListSchema = string;
+export interface EntityBlankSchema extends EntitySchema {
+    type: string;
+    properties: KeyValue<EntityPropertySchema>;
+    userGroups: BuiltinUserGroup[]
+}
 
 export interface EntityPropertySchema {
     name: string;
-    inputGroup: UserListSchema;
-    outputGroup: UserListSchema;
+    inputGroup: string;
+    outputGroup: string;
 }
 
 export class Schema {

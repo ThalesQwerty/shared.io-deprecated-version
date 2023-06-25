@@ -1,14 +1,14 @@
-import { Channel, User } from ".";
-import { Debouncer, KeyValue, UUID, WatchedObject, WatchedObjectEvents } from "../utils";
+import { Channel, DECORATORS, Decorators, User } from ".";
+import { UUID, WatchedObject } from "../utils";
 import _ from "lodash";
-import { Schema, EntitySchema } from "./Schema";
-import { UserGroup } from "./UserGroup";
+import { Schema, EntityBlankSchema } from "./Schema";
+import { UserGroup, BuiltinUserGroup } from "./UserGroup";
 
-function blankSchema(type: string) {
+function blankSchema(type: string): EntityBlankSchema {
     return {
         type: type,
         properties: {},
-        userGroups: ["_all", "_owner"]
+        userGroups: ["owners", "viewers"]
     };
 }
 
@@ -16,7 +16,11 @@ export interface EntityEvents {
     delete: {},
 }
 
-export class Entity<ChannelType extends Channel = Channel> extends WatchedObject<object, EntityEvents> {
+type EntityUserGroups = {
+    [key in BuiltinUserGroup]: UserGroup
+}
+
+export class Entity<ChannelType extends Channel = Channel> extends WatchedObject<object, EntityEvents> implements EntityUserGroups {
     /**
      * The path in which this entity can be found on the server's entity tree
      */
@@ -38,41 +42,77 @@ export class Entity<ChannelType extends Channel = Channel> extends WatchedObject
         return Schema.entities[type] ??= blankSchema(type);
     }
 
+    /**
+     * Get the decorators with correct type annotation for a given entity type
+     * @param EntityType (type paremeter) The entity class
+     * @returns The decorators: `@group`, `@inputFor`, `@outputFor`, `@input`, `@output`, `@hidden` and `@shared`
+     */
+    public static decorators<EntityType extends Entity = Entity>() {
+        return DECORATORS as unknown as Decorators<EntityType>;
+    }
+
+    /**
+     * Random unique and universal identifier string for this entity.
+     */
     public readonly id = UUID();
 
     /**
-     * An user group containing only this entity's owner, if it has one
+     * Built-in user group for defining the users who are allowed to
+     * edit this entity's properties and call its methods,
+     * when they are decorated with `@input`
      *
-     * Alias for `this.owner ? new UserGroup(this.owner) : new UserGroup()`
+     * By default it contains only the original owner.
+     * It can be altered, although it's not advisable.
      */
-    protected readonly _owner: UserGroup = new UserGroup();
+    public readonly owners: UserGroup = new UserGroup();
 
     /**
-     * Alias for `this.channel.users`
+     * Built-in user group for defining the users who are allowed to
+     * read this entity's properties and listen to its method calls,
+     * when they are decorated with `@output`
+     *
+     * By default it references the entity channel's user list, and therefore cannot be directly altered.
+     * If you wish to change it, reassign this value to a new user group on your class declaration.
      */
-    protected readonly _all: UserGroup;
+    public readonly viewers: UserGroup;
 
-    constructor (public readonly channel: ChannelType, public readonly owner?: User) {
-        super(undefined, ["channel", "owner", "_owner", "_all", "schema"]);
+    constructor (
+        /**
+         * The channel in which this entity can be found
+         */
+        public readonly channel: ChannelType,
 
-        this._all = channel.users;
-        if (owner) this._owner.add(owner);
+        /**
+         * The user who created this entity.
+         *
+         * `undefined` if it has been created by the server.
+         */
+        public readonly owner?: User
+    ) {
+        super(undefined, ["channel", "owner", "owners", "viewers", "schema"]);
+
+        this.viewers = channel.users;
+        if (owner) this.owners.add(owner);
 
         const { server } = channel;
         server.entities.set(this.path, this);
 
-        this.on("write", ({ key, newValue }) => {
+        const getWatchList = (key: string) => {
             const propertySchema = this.schema.properties[key];
-            if (propertySchema) {
-                const watchList = propertySchema.outputGroup && (this as any)[propertySchema.outputGroup] as UserGroup;
+            if (!propertySchema?.outputGroup) return;
 
-                if (watchList) {
-                    watchList.output({
-                        path: this.path,
-                        key,
-                        value: newValue
-                    });
-                }
+            return (this as any)[propertySchema.outputGroup] as UserGroup|undefined;
+        }
+
+        this.on("write", ({ key, newValue }) => {
+            const watchList = getWatchList(key);
+
+            if (watchList) {
+                watchList.output({
+                    path: this.path,
+                    key,
+                    value: newValue
+                });
             }
         });
     }
