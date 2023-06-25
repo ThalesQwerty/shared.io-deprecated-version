@@ -7,15 +7,12 @@ const obj = new WatchedObject({
     obj: {
         key: 0
     },
-    arr: [] as any[]
+    arr: [] as any[],
 });
 
 obj.on("write", ({ key, oldValue, newValue }) => {
-    console.log(`WRITE ${key}: ${oldValue} -> ${newValue}`);
-});
 
-obj.on("change", ({ diff }) => {
-    console.log("CHANGE", diff);
+    console.log(`WRITE ${key}: ${oldValue} -> ${newValue}`);
 });
 
 obj.a = 0;
