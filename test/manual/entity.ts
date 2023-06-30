@@ -1,23 +1,25 @@
 import { Channel, Entity, User, UserGroup } from "../../lib/api";
 import { Server } from "../../lib/connection";
 
-const server = new Server();
+const server = new Server().start();
 
-const { inputFor, outputFor, group, input, output, hidden, shared } = Entity.decorators<TestEntity>();
+const { input, output, shared, hidden } = Entity.decorators<TestEntity>();
 class TestEntity extends Entity {
-    @input @output a = 1;
-    @output b = 2;
+    @output a = 1;
 
-    ally = new UserGroup();
-    allyAndOwner = UserGroup.union(this.ally, this.owners);
-
-    @shared test(n = 0) {
-        return this.a += n;
+    @shared
+    delete(user?: User) {
+        super.delete();
     }
 }
 
-console.log(TestEntity.schema);
+class TestChannel extends Channel {
+    maxUsers = 5;
+}
 
-const entity = new TestEntity(new Channel(server));
+const channel = new Channel(server);
+const entity = new TestEntity(channel);
 
-console.log(entity.schema);
+server.on("connection", ({ user }) => {
+
+});

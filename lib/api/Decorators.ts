@@ -1,21 +1,21 @@
-import { BuiltinUserGroup, Entity, User, UserGroup } from ".";
-import { Group, StringKeyOf } from "../utils";
+import { BuiltinUserGroup, Entity, User, UserGroup, EntityKey } from ".";
+import { Group } from "../utils";
 
 type GroupName<EntityType extends Entity = Entity> = BuiltinUserGroup | {
-    [key in StringKeyOf<EntityType>]: EntityType[key] extends Group<User> ? key : never
-}[StringKeyOf<EntityType>];
+    [key in EntityKey<EntityType>]: EntityType[key] extends Group<User> ? key : never
+}[EntityKey<EntityType>];
 
-type NotGroupName<EntityType extends Entity = Entity> = BuiltinUserGroup | {
-    [key in StringKeyOf<EntityType>]: EntityType[key] extends Group<User> ? never : key
-}[StringKeyOf<EntityType>];
+type NotGroupName<EntityType extends Entity = Entity> = {
+    [key in EntityKey<EntityType>]: EntityType[key] extends Group<User> ? never : key
+}[EntityKey<EntityType>];
 
 type MethodName<EntityType extends Entity = Entity> = NotGroupName<EntityType> & (BuiltinUserGroup | {
-    [key in StringKeyOf<EntityType>]: EntityType[key] extends Function ? key : never
-}[StringKeyOf<EntityType>]);
+    [key in EntityKey<EntityType>]: EntityType[key] extends Function ? key : never
+}[EntityKey<EntityType>]);
 
 type PropertyName<EntityType extends Entity = Entity> = NotGroupName<EntityType> & (BuiltinUserGroup | {
-    [key in StringKeyOf<EntityType>]: EntityType[key] extends Function ? never : key
-}[StringKeyOf<EntityType>]);
+    [key in EntityKey<EntityType>]: EntityType[key] extends Function ? never : key
+}[EntityKey<EntityType>]);
 
 function getPropertySchema<EntityType extends Entity>(entity: EntityType, propertyName: string) {
     const { schema } = entity;
@@ -23,8 +23,8 @@ function getPropertySchema<EntityType extends Entity>(entity: EntityType, proper
 
     return schema.properties[propertyName] ??= {
         name: propertyName,
-        inputGroup: "",
-        outputGroup: ""
+        inputGroup: UserGroup.NONE,
+        outputGroup: UserGroup.VIEWERS
     };
 }
 
@@ -50,14 +50,22 @@ export interface Decorators<EntityType extends Entity = Entity> {
     shared: (entity: EntityType, propertyName: NotGroupName<EntityType>) => void;
 
     /**
-     * Allows a given user group defined on this entity to read this property (or if it's a method, allows them to listen to its calls)
+     * Defines a given user group on this entity as the one who's able to read this property (or if it's a method, allows them to listen to its calls)
      */
     outputFor: (group: GroupName<EntityType>) => (entity: EntityType, propertyName: NotGroupName<EntityType>) => void;
 
     /**
-     * Allows a given user group defined on this entity to write into this property (or if it's a method, allows them to directly call it)
+     * Defines a given user group on this entity as the one who's able towrite into this property (or if it's a method, allows them to directly call it)
      */
     inputFor: (group: GroupName<EntityType>) => (entity: EntityType, propertyName: NotGroupName<EntityType>) => void;
+
+    /**
+     * Defines the access rules for this property.
+     * 
+     * @param inputGroup If not null, defines a given user group on this entity as the one who's able to write into this property (or to directly call it, if it's a method).
+     * @param outputGroup If not null, defines a given user group on this entity as the one who's able to read this property (or to listen to its calls, if it's a method).
+     */
+    io: (inputGroup?: GroupName<EntityType> | null, outputGroup?: GroupName<EntityType> | null) => (entity: EntityType, propertyName: NotGroupName<EntityType>) => void;
 
     /**
      * Marks this user group as visible on client-side.
@@ -77,38 +85,38 @@ const DECORATORS: Decorators = {
         }
     },
 
-    outputFor(group: string) {
+    io(inputGroup: string | null = UserGroup.OWNERS, outputGroup: string | null = UserGroup.INHERIT) {
         return function (entity: Entity, propertyName: string) {
             const rules = getPropertySchema(entity, propertyName);
             if (!rules) return;
 
-            rules.outputGroup = group;
+            rules.inputGroup = inputGroup ?? rules.inputGroup;
+            rules.outputGroup = outputGroup ?? rules.outputGroup;
         }
+    },
+
+    outputFor(group: string) {
+        return DECORATORS.io(UserGroup.INHERIT, group as any);
     },
 
     inputFor(group: string) {
-        return function (entity: Entity, propertyName: string) {
-            const rules = getPropertySchema(entity, propertyName);
-            if (!rules) return;
-
-            rules.inputGroup = group;
-        }
+        return DECORATORS.io(group as any, UserGroup.INHERIT);
     },
 
     output(entity: Entity, propertyName: string) {
-        return DECORATORS.outputFor(UserGroup.VIEWERS)(entity, propertyName as NotGroupName);
+        return DECORATORS.io(UserGroup.INHERIT, UserGroup.VIEWERS)(entity, propertyName as NotGroupName);
     },
 
     input(entity: Entity, propertyName: string) {
-        return DECORATORS.inputFor(UserGroup.OWNERS)(entity, propertyName as NotGroupName);
+        return DECORATORS.io(UserGroup.OWNERS, UserGroup.INHERIT)(entity, propertyName as NotGroupName);
     },
 
     hidden(entity: Entity, propertyName: string) {
-        return DECORATORS.outputFor(UserGroup.OWNERS)(entity, propertyName as NotGroupName);
+        return DECORATORS.io(UserGroup.INHERIT, UserGroup.OWNERS)(entity, propertyName as NotGroupName);
     },
 
     shared(entity: Entity, propertyName: string) {
-        return DECORATORS.inputFor(UserGroup.VIEWERS)(entity, propertyName as NotGroupName);
+        return DECORATORS.io(UserGroup.VIEWERS, UserGroup.INHERIT)(entity, propertyName as NotGroupName);
     }
 }
 

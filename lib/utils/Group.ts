@@ -16,6 +16,8 @@ export interface GroupEvents<T> {
  * Base class for groups of items. Behaves similarly to sets.
  */
 export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
+    public static readonly empty = new Group<never>().lock();
+
     private items: T[] = []
 
     /**
@@ -119,6 +121,13 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
      */
     get count() {
         return this.items.length;
+    }
+
+    /**
+     * Is this group empty?
+     */
+    get empty() {
+        return !this.count;
     }
 
     /**

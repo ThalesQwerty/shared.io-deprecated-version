@@ -1,14 +1,14 @@
 import { Channel, DECORATORS, Decorators, User } from ".";
-import { UUID, WatchedObject } from "../utils";
+import { Group, StringKeyOf, UUID, WatchedObject } from "../utils";
 import _ from "lodash";
 import { Schema, EntityBlankSchema } from "./Schema";
-import { UserGroup, BuiltinUserGroup } from "./UserGroup";
+import { UserGroup, BuiltinUserGroup, HiddenBuiltingUserGroup } from "./UserGroup";
 
 function blankSchema(type: string): EntityBlankSchema {
     return {
         type: type,
         properties: {},
-        userGroups: ["owners", "viewers"]
+        userGroups: ["owners", "viewers", "nobody"]
     };
 }
 
@@ -17,8 +17,13 @@ export interface EntityEvents {
 }
 
 type EntityUserGroups = {
-    [key in BuiltinUserGroup]: UserGroup
+    [key in Exclude<BuiltinUserGroup, HiddenBuiltingUserGroup>]: UserGroup
 }
+
+export type DefaultEntityKey = Exclude<StringKeyOf<Entity>,"delete">;
+export type EntityKey<EntityType extends Entity> = Exclude<StringKeyOf<EntityType>, DefaultEntityKey>;
+
+export type OutputHandler<T = unknown> = (info: {oldValue: T, newValue: T, user: User, entity: Entity, key: string }) => T;
 
 export class Entity<ChannelType extends Channel = Channel> extends WatchedObject<object, EntityEvents> implements EntityUserGroups {
     /**
@@ -76,6 +81,11 @@ export class Entity<ChannelType extends Channel = Channel> extends WatchedObject
      */
     public readonly viewers: UserGroup;
 
+    /**
+     * Built-in empty user group. Cannot be altered.
+     */
+    private readonly nobody: UserGroup = UserGroup.empty as unknown as UserGroup;
+
     constructor (
         /**
          * The channel in which this entity can be found
@@ -89,7 +99,7 @@ export class Entity<ChannelType extends Channel = Channel> extends WatchedObject
          */
         public readonly owner?: User
     ) {
-        super(undefined, ["channel", "owner", "owners", "viewers", "schema"]);
+        super(undefined, ["channel", "owner", "owners", "viewers", "nobody", "schema"]);
 
         this.viewers = channel.users;
         if (owner) this.owners.add(owner);
@@ -99,21 +109,26 @@ export class Entity<ChannelType extends Channel = Channel> extends WatchedObject
 
         const getWatchList = (key: string) => {
             const propertySchema = this.schema.properties[key];
-            if (!propertySchema?.outputGroup) return;
+            if (!propertySchema?.outputGroup || propertySchema.outputGroup === UserGroup.NONE) return;
 
             return (this as any)[propertySchema.outputGroup] as UserGroup|undefined;
         }
 
         this.on("write", ({ key, newValue }) => {
-            const watchList = getWatchList(key);
+            getWatchList(key)?.read({
+                entity: this,
+                key,
+                value: newValue
+            });
+        });
 
-            if (watchList) {
-                watchList.output({
-                    path: this.path,
-                    key,
-                    value: newValue
-                });
-            }
+        this.on("call", ({ key, parameters, returnedValue }) => {
+            getWatchList(key)?.listen({
+                entity: this,
+                methodName: key,
+                parameters,
+                returnedValue
+            });
         });
     }
 
