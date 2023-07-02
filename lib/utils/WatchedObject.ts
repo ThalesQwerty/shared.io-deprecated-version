@@ -1,47 +1,79 @@
 import EventEmitter from "node:events";
-import { CustomEventEmitter, KeyValue } from ".";
+import { CustomEventEmitter, KeyValue, StringKeyOf } from ".";
 import _  from "lodash";
 
 export interface WatchedObjectEvents {
     write: {
         key: string,
         oldValue: unknown,
-        newValue: unknown
+        newValue: unknown,
+    },
+    read: {
+        key: string,
+        value: unknown
     },
     call: {
         key: string,
         parameters: unknown[],
         returnedValue: unknown
     },
-    deleteKey: {
+    delete: {
         key: string,
         oldValue: unknown
     }
 }
 
-type WatchedObject<ObjectType extends object = object, EventList extends KeyValue = {}> = ObjectType&CustomEventEmitter<WatchedObjectEvents&EventList>;
+export type ObjectWatcher = CustomEventEmitter<WatchedObjectEvents>;
 
-const WatchedObject = class WatchedObject extends CustomEventEmitter<WatchedObjectEvents> {
-    constructor(props?: object, ignoreKeys: string[] = []) {
-        super();
+/**
+ * For a given `target` object, creates a new `proxy` object and its `watcher`. Whenever something happens in the `proxy`, it will be replicated on the `target` and the `watcher` will emit a corresponding event that can be listened to.
+ */
+export class WatchedObject<ObjectType extends Object = Object> {
+    /**
+     * A proxy for the `target` object. Whenever something happens in it, the `watcher` emits an event.
+     */
+    public readonly proxy: ObjectType;
 
-        if (props) {
-            Object.setPrototypeOf(this, Object.getPrototypeOf(props));
+    /**
+     * Emits events when something happens on the watched object.
+     *
+     * - `write`: Whenever some value is written into a property
+     * - `read`: Whenever some value is read from a property
+     * - `call`: Whenever some method is called
+     * - `delete`: Whenever some property/method is deleted
+     */
+    public readonly watcher = new CustomEventEmitter<WatchedObjectEvents>();
 
-            for (const key in EventEmitter.prototype) {
-                (this as any)[key] = (EventEmitter.prototype as any)[key];
+
+    constructor(
+        /**
+         * Original object.
+         */
+        public readonly target: ObjectType,
+        /**
+         * Defines which keys will not be watched. (Only top-level keys are supported)
+         */
+        ignoreKeys: string[] = [],
+        ignoreObjects: WatchedObject[] = []
+    ) {
+        const children: KeyValue<Object> = {};
+
+        const createChild = (key: string, childObject: Object) => {
+            if (childObject === this.target) {
+                return children[key] = this.proxy;
             }
-        }
 
-        const ignoredKeys: string[] = [...ignoreKeys, ...Object.keys(EventEmitter.prototype)];
-        const children: KeyValue<WatchedObject> = {};
+            const duplicate = ignoreObjects.find(({ target }) => target === childObject);
+            if (duplicate) {
+                return children[key] = duplicate.proxy;
+            }
 
-        const createChild = (key: string, target: Object) => {
-            const newChild = children[key] = new WatchedObject(target);
+            const {proxy: newChild, watcher: newProxy} = new WatchedObject(childObject, [], [...ignoreObjects, this]);
+            children[key] = newChild;
 
-            newChild.on("write", event => {
+            newProxy.on("write", event => {
                 if (children[key] === newChild) {
-                    this.emit("write", {
+                    this.watcher.emit("write", {
                         key: `${key}.${event.key}`,
                         oldValue: event.oldValue,
                         newValue: event.newValue
@@ -49,9 +81,9 @@ const WatchedObject = class WatchedObject extends CustomEventEmitter<WatchedObje
                 }
             });
 
-            newChild.on("call", event => {
+            newProxy.on("call", event => {
                 if (children[key] === newChild) {
-                    this.emit("call", {
+                    this.watcher.emit("call", {
                         key: `${key}.${event.key}`,
                         parameters: event.parameters,
                         returnedValue: event.returnedValue
@@ -59,9 +91,9 @@ const WatchedObject = class WatchedObject extends CustomEventEmitter<WatchedObje
                 }
             });
 
-            newChild.on("deleteKey", event => {
+            newProxy.on("delete", event => {
                 if (children[key] === newChild) {
-                    this.emit("deleteKey", {
+                    this.watcher.emit("delete", {
                         key: `${key}.${event.key}`,
                         oldValue: event.oldValue
                     })
@@ -71,9 +103,9 @@ const WatchedObject = class WatchedObject extends CustomEventEmitter<WatchedObje
             return newChild;
         }
 
-        const proxy = new Proxy(this, {
-            get: (target: any, key: string) => {
-                if (ignoredKeys.includes(key)) {
+        this.proxy = new Proxy(this.target, {
+            get: (target: ObjectType, key: StringKeyOf<ObjectType>) => {
+                if (ignoreKeys.includes(key)) {
                     return target[key];
                 }
 
@@ -85,7 +117,7 @@ const WatchedObject = class WatchedObject extends CustomEventEmitter<WatchedObje
                     : isFunction ? (children[key] ??= new Proxy(value, {
                         apply: (method: Function, thisArg: object, parameters: any[]) => {
                             const returnedValue = method.apply(thisArg, parameters);
-                            this.emit("call", {
+                            this.watcher.emit("call", {
                                 key,
                                 parameters,
                                 returnedValue
@@ -95,20 +127,20 @@ const WatchedObject = class WatchedObject extends CustomEventEmitter<WatchedObje
                     }))
                     : value;
             },
-            set: (target: any, key: string, newValue: any) => {
-                if (ignoredKeys.includes(key)) {
+            set: (target: ObjectType, key: StringKeyOf<ObjectType>, newValue: any) => {
+                if (ignoreKeys.includes(key)) {
                     target[key] = newValue;
                     return true;
-                }
-
-                if (newValue && typeof newValue === "object") {
-                    createChild(key, newValue);
                 }
 
                 const oldValue = target[key];
                 target[key] = newValue;
 
-                this.emit("write", {
+                if (newValue && typeof newValue === "object") {
+                    createChild(key, newValue);
+                }
+
+                this.watcher.emit("write", {
                     key,
                     oldValue,
                     newValue
@@ -116,8 +148,8 @@ const WatchedObject = class WatchedObject extends CustomEventEmitter<WatchedObje
 
                 return true;
             },
-            deleteProperty: (target: any, key: string) => {
-                if (ignoredKeys.includes(key)) {
+            deleteProperty: (target: ObjectType, key: StringKeyOf<ObjectType>) => {
+                if (ignoreKeys.includes(key)) {
                     delete target[key];
                     return true;
                 }
@@ -125,27 +157,13 @@ const WatchedObject = class WatchedObject extends CustomEventEmitter<WatchedObje
                 const oldValue = target[key];
                 delete target[key];
 
-                this.emit("deleteKey", {
+                this.watcher.emit("delete", {
                     key,
                     oldValue
                 });
 
                 return true;
             }
-        }) as this;
-
-        if (props) {
-            for (const key in props) {
-                (proxy as any)[key] = (props as any)[key];
-            }
-            if (props instanceof Array) (proxy as any).length = props.length;
-        }
-
-        return proxy;
+        }) as ObjectType;
     }
-} as new <ObjectType extends object, EventList extends KeyValue = {}>
-    (object?: ObjectType, ignoreKeys?: string[]) => WatchedObject<ObjectType, EventList>;
-
-export {
-    WatchedObject
-};
+}

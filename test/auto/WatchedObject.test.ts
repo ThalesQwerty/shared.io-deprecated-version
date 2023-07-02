@@ -1,9 +1,9 @@
-import { WatchedObject, WatchedObjectEvents } from "../../lib/utils";
+import { ObjectWatcher, WatchedObject, WatchedObjectEvents } from "../../lib/utils";
 
 describe("WatchedObject", () => {
     describe("Properties", () => {
         describe("Primitives", () => {
-            const obj = new WatchedObject({
+            const { proxy: object } = new WatchedObject({
                 a: 42,
                 b: "test",
                 c: false,
@@ -12,59 +12,59 @@ describe("WatchedObject", () => {
             });
 
             test("Initial assignment", () => {
-                expect(obj).toBeInstanceOf(Object);
-                expect(obj.a).toBe(42);
-                expect(obj.b).toBe("test");
-                expect(obj.c).toBe(false);
-                expect(obj.d).toBe(null);
-                expect(obj.e).toBe(undefined);
-                expect(obj).toHaveProperty("d");
-                expect(obj).toHaveProperty("e");
-                expect(obj).not.toHaveProperty("f");
+                expect(object).toBeInstanceOf(Object);
+                expect(object.a).toBe(42);
+                expect(object.b).toBe("test");
+                expect(object.c).toBe(false);
+                expect(object.d).toBe(null);
+                expect(object.e).toBe(undefined);
+                expect(object).toHaveProperty("d");
+                expect(object).toHaveProperty("e");
+                expect(object).not.toHaveProperty("f");
             });
 
             test("Reassign property", () => {
-                obj.a++;
-                obj.b = "";
-                obj.c = true;
+                object.a++;
+                object.b = "";
+                object.c = true;
 
-                expect(obj).toBeInstanceOf(Object);
-                expect(obj.a).toBe(43);
-                expect(obj.b).toBe("");
-                expect(obj.c).toBe(true);
-                expect(obj.d).toBe(null);
-                expect(obj.e).toBe(undefined);
-                expect(obj).toHaveProperty("d");
-                expect(obj).toHaveProperty("e");
-                expect(obj).not.toHaveProperty("f");
+                expect(object).toBeInstanceOf(Object);
+                expect(object.a).toBe(43);
+                expect(object.b).toBe("");
+                expect(object.c).toBe(true);
+                expect(object.d).toBe(null);
+                expect(object.e).toBe(undefined);
+                expect(object).toHaveProperty("d");
+                expect(object).toHaveProperty("e");
+                expect(object).not.toHaveProperty("f");
             });
 
             test("Assign new property", () => {
-                (obj as any).f = 0;
+                (object as any).f = 0;
 
-                expect(obj).toBeInstanceOf(Object);
-                expect(obj).toHaveProperty("d");
-                expect(obj).toHaveProperty("e");
-                expect(obj).toHaveProperty("f");
+                expect(object).toBeInstanceOf(Object);
+                expect(object).toHaveProperty("d");
+                expect(object).toHaveProperty("e");
+                expect(object).toHaveProperty("f");
             });
 
             test("Delete property", () => {
-                delete (obj as any).a;
-                delete (obj as any).d;
+                delete (object as any).a;
+                delete (object as any).d;
 
-                expect(obj).toBeInstanceOf(Object);
-                expect(obj).not.toHaveProperty("a");
-                expect(obj).toHaveProperty("b");
-                expect(obj).toHaveProperty("c");
-                expect(obj).not.toHaveProperty("d");
-                expect(obj).toHaveProperty("e");
-                expect(obj).toHaveProperty("f");
+                expect(object).toBeInstanceOf(Object);
+                expect(object).not.toHaveProperty("a");
+                expect(object).toHaveProperty("b");
+                expect(object).toHaveProperty("c");
+                expect(object).not.toHaveProperty("d");
+                expect(object).toHaveProperty("e");
+                expect(object).toHaveProperty("f");
             });
         });
 
         describe("Objects", () => {
 
-            const obj = new WatchedObject({
+            const { proxy: object } = new WatchedObject({
                 x: {
                     a: 42,
                     b: "test",
@@ -87,171 +87,171 @@ describe("WatchedObject", () => {
             });
 
             test("Initial assignment", () => {
-                expect(obj.x).toBeInstanceOf(Object);
-                expect(obj.x.a).toBe(42);
-                expect(obj.x.b).toBe("test");
-                expect(obj.x.c).toBe(false);
+                expect(object.x).toBeInstanceOf(Object);
+                expect(object.x.a).toBe(42);
+                expect(object.x.b).toBe("test");
+                expect(object.x.c).toBe(false);
 
-                expect(obj.y).toBeInstanceOf(Object);
-                expect(obj.y.d).toBe(null);
-                expect(obj.y.e).toBe(undefined);
+                expect(object.y).toBeInstanceOf(Object);
+                expect(object.y.d).toBe(null);
+                expect(object.y.e).toBe(undefined);
 
-                expect(obj.z).toBeInstanceOf(Object);
+                expect(object.z).toBeInstanceOf(Object);
 
-                expect(obj.z.p).toBeInstanceOf(Object);
-                expect(obj.z.p.n).toBe(0);
-                expect(obj.z.p.m).toBe("1");
+                expect(object.z.p).toBeInstanceOf(Object);
+                expect(object.z.p.n).toBe(0);
+                expect(object.z.p.m).toBe("1");
 
-                expect(obj.z.p.q).toBeInstanceOf(Object);
-                expect(obj.z.p.q.i).toBe(true);
+                expect(object.z.p.q).toBeInstanceOf(Object);
+                expect(object.z.p.q.i).toBe(true);
 
-                expect(obj.w).toBeInstanceOf(Object);
+                expect(object.w).toBeInstanceOf(Object);
             });
 
             test("Reassign properties", () => {
-                obj.x.a++;
-                obj.x.b = "";
-                obj.x.c = true;
+                object.x.a++;
+                object.x.b = "";
+                object.x.c = true;
 
-                expect(obj.x).toBeInstanceOf(Object);
-                expect(obj.x.a).toBe(43);
-                expect(obj.x.b).toBe("");
-                expect(obj.x.c).toBe(true);
+                expect(object.x).toBeInstanceOf(Object);
+                expect(object.x.a).toBe(43);
+                expect(object.x.b).toBe("");
+                expect(object.x.c).toBe(true);
             });
 
             test("Reassign sub-properties", () => {
-                obj.z.p.m += "2";
-                obj.z.p.n--;
-                obj.z.p.q.i = false;
+                object.z.p.m += "2";
+                object.z.p.n--;
+                object.z.p.q.i = false;
 
-                expect(obj.z).toBeInstanceOf(Object);
-                expect(obj.z.p).toBeInstanceOf(Object);
-                expect(obj.z.p.m).toBe("12");
-                expect(obj.z.p.n).toBe(-1);
-                expect(obj.z.p.q).toBeInstanceOf(Object);
-                expect(obj.z.p.q.i).toBe(false);
+                expect(object.z).toBeInstanceOf(Object);
+                expect(object.z.p).toBeInstanceOf(Object);
+                expect(object.z.p.m).toBe("12");
+                expect(object.z.p.n).toBe(-1);
+                expect(object.z.p.q).toBeInstanceOf(Object);
+                expect(object.z.p.q.i).toBe(false);
             });
 
             test("Delete sub-properties", () => {
-                expect(obj).toHaveProperty("x");
-                expect(obj).toHaveProperty("y");
-                expect(obj).toHaveProperty("z");
-                expect(obj).toHaveProperty("w");
+                expect(object).toHaveProperty("x");
+                expect(object).toHaveProperty("y");
+                expect(object).toHaveProperty("z");
+                expect(object).toHaveProperty("w");
 
-                delete (obj as any).w;
+                delete (object as any).w;
 
-                expect(obj).toHaveProperty("x");
-                expect(obj).toHaveProperty("y");
-                expect(obj).toHaveProperty("z");
-                expect(obj).not.toHaveProperty("w");
+                expect(object).toHaveProperty("x");
+                expect(object).toHaveProperty("y");
+                expect(object).toHaveProperty("z");
+                expect(object).not.toHaveProperty("w");
             });
 
             test("Reassign sub-objects", () => {
-                expect(obj.x).toBeInstanceOf(Object);
-                expect(obj.x).toHaveProperty("a");
-                expect(obj.x).toHaveProperty("b");
-                expect(obj.x).toHaveProperty("c");
-                expect(obj.x).not.toHaveProperty("u");
+                expect(object.x).toBeInstanceOf(Object);
+                expect(object.x).toHaveProperty("a");
+                expect(object.x).toHaveProperty("b");
+                expect(object.x).toHaveProperty("c");
+                expect(object.x).not.toHaveProperty("u");
 
-                (obj as any).x = {
+                (object as any).x = {
                     u: "hello"
                 }
 
-                expect(obj.x).not.toHaveProperty("a");
-                expect(obj.x).not.toHaveProperty("b");
-                expect(obj.x).not.toHaveProperty("c");
-                expect(obj.x).toHaveProperty("u");
-                expect((obj as any).x.u).toBe("hello");
+                expect(object.x).not.toHaveProperty("a");
+                expect(object.x).not.toHaveProperty("b");
+                expect(object.x).not.toHaveProperty("c");
+                expect(object.x).toHaveProperty("u");
+                expect((object as any).x.u).toBe("hello");
             });
         });
 
         describe("Arrays", () => {
-            const obj = new WatchedObject({
+            const { proxy: object } = new WatchedObject({
                 arr: [0]
             });
 
             test("Initial assignment", () => {
-                expect(obj.arr).toBeInstanceOf(Array);
-                expect(obj.arr[0]).toBe(0);
-                expect(obj.arr[1]).toBeUndefined();
-                expect(obj.arr).toHaveLength(1);
+                expect(object.arr).toBeInstanceOf(Array);
+                expect(object.arr[0]).toBe(0);
+                expect(object.arr[1]).toBeUndefined();
+                expect(object.arr).toHaveLength(1);
             })
 
             test("Array changing methods", () => {
-                obj.arr.push(1, 2);
+                object.arr.push(1, 2);
 
-                expect(obj.arr).toBeInstanceOf(Array);
-                expect(obj.arr[0]).toBe(0);
-                expect(obj.arr[1]).toBe(1);
-                expect(obj.arr[2]).toBe(2);
-                expect(obj.arr).toHaveLength(3);
+                expect(object.arr).toBeInstanceOf(Array);
+                expect(object.arr[0]).toBe(0);
+                expect(object.arr[1]).toBe(1);
+                expect(object.arr[2]).toBe(2);
+                expect(object.arr).toHaveLength(3);
 
-                obj.arr.unshift(-2, -1);
+                object.arr.unshift(-2, -1);
 
-                expect(obj.arr).toBeInstanceOf(Array);
-                expect(obj.arr[0]).toBe(-2);
-                expect(obj.arr[1]).toBe(-1);
-                expect(obj.arr[2]).toBe(0);
-                expect(obj.arr[3]).toBe(1);
-                expect(obj.arr[4]).toBe(2);
-                expect(obj.arr).toHaveLength(5);
+                expect(object.arr).toBeInstanceOf(Array);
+                expect(object.arr[0]).toBe(-2);
+                expect(object.arr[1]).toBe(-1);
+                expect(object.arr[2]).toBe(0);
+                expect(object.arr[3]).toBe(1);
+                expect(object.arr[4]).toBe(2);
+                expect(object.arr).toHaveLength(5);
 
-                obj.arr.pop();
-                obj.arr.shift();
+                object.arr.pop();
+                object.arr.shift();
 
-                expect(obj.arr).toBeInstanceOf(Array);
-                expect(obj.arr[0]).toBe(-1);
-                expect(obj.arr[1]).toBe(0);
-                expect(obj.arr[2]).toBe(1);
-                expect(obj.arr).toHaveLength(3);
+                expect(object.arr).toBeInstanceOf(Array);
+                expect(object.arr[0]).toBe(-1);
+                expect(object.arr[1]).toBe(0);
+                expect(object.arr[2]).toBe(1);
+                expect(object.arr).toHaveLength(3);
 
-                obj.arr.reverse();
+                object.arr.reverse();
 
-                expect(obj.arr).toBeInstanceOf(Array);
-                expect(obj.arr[0]).toBe(1);
-                expect(obj.arr[1]).toBe(0);
-                expect(obj.arr[2]).toBe(-1);
-                expect(obj.arr).toHaveLength(3);
+                expect(object.arr).toBeInstanceOf(Array);
+                expect(object.arr[0]).toBe(1);
+                expect(object.arr[1]).toBe(0);
+                expect(object.arr[2]).toBe(-1);
+                expect(object.arr).toHaveLength(3);
 
-                obj.arr.splice(1, 1);
+                object.arr.splice(1, 1);
 
-                expect(obj.arr).toBeInstanceOf(Array);
-                expect(obj.arr[0]).toBe(1);
-                expect(obj.arr[1]).toBe(-1);
-                expect(obj.arr).toHaveLength(2);
+                expect(object.arr).toBeInstanceOf(Array);
+                expect(object.arr[0]).toBe(1);
+                expect(object.arr[1]).toBe(-1);
+                expect(object.arr).toHaveLength(2);
 
-                obj.arr.sort();
+                object.arr.sort();
 
-                expect(obj.arr).toBeInstanceOf(Array);
+                expect(object.arr).toBeInstanceOf(Array);
 
-                expect(obj.arr[0]).toBe(-1);
-                expect(obj.arr[1]).toBe(1);
-                expect(obj.arr).toHaveLength(2);
+                expect(object.arr[0]).toBe(-1);
+                expect(object.arr[1]).toBe(1);
+                expect(object.arr).toHaveLength(2);
             });
 
             test("Assign indexes", () => {
-                obj.arr[0] = 42;
-                obj.arr[1] = -42;
+                object.arr[0] = 42;
+                object.arr[1] = -42;
 
-                expect(obj.arr).toBeInstanceOf(Array);
-                expect(obj.arr[0]).toBe(42);
-                expect(obj.arr[1]).toBe(-42);
-                expect(obj.arr).toHaveLength(2);
+                expect(object.arr).toBeInstanceOf(Array);
+                expect(object.arr[0]).toBe(42);
+                expect(object.arr[1]).toBe(-42);
+                expect(object.arr).toHaveLength(2);
             });
 
             test("Reassignment", () => {
-                obj.arr = [1, 2, 4, 8, 16, 32, 64, 128];
+                object.arr = [1, 2, 4, 8, 16, 32, 64, 128];
 
-                expect(obj.arr).toBeInstanceOf(Array);
-                expect(obj.arr[0]).toBe(1);
-                expect(obj.arr[1]).toBe(2);
-                expect(obj.arr[2]).toBe(4);
-                expect(obj.arr[3]).toBe(8);
-                expect(obj.arr[4]).toBe(16);
-                expect(obj.arr[5]).toBe(32);
-                expect(obj.arr[6]).toBe(64);
-                expect(obj.arr[7]).toBe(128);
-                expect(obj.arr).toHaveLength(8);
+                expect(object.arr).toBeInstanceOf(Array);
+                expect(object.arr[0]).toBe(1);
+                expect(object.arr[1]).toBe(2);
+                expect(object.arr[2]).toBe(4);
+                expect(object.arr[3]).toBe(8);
+                expect(object.arr[4]).toBe(16);
+                expect(object.arr[5]).toBe(32);
+                expect(object.arr[6]).toBe(64);
+                expect(object.arr[7]).toBe(128);
+                expect(object.arr).toHaveLength(8);
             });
         });
     });
@@ -266,12 +266,14 @@ describe("WatchedObject", () => {
                 y: any[]
             };
 
-            let obj: WatchedObject<PrimitiveTestObject>;
+            let watchedObject: WatchedObject<PrimitiveTestObject>;
+            let object: PrimitiveTestObject;
+            let watcher: ObjectWatcher;
 
             const firedEvents: WatchedObjectEvents["write"][] = [];
 
             beforeEach(() => {
-                obj = new WatchedObject({
+                watchedObject = new WatchedObject({
                     a: 2,
                     b: "test",
                     c: true,
@@ -286,21 +288,24 @@ describe("WatchedObject", () => {
                     },
                     y: [0]
                 });
-                obj.on("write", event => {
+                object = watchedObject.proxy;
+                watcher = watchedObject.watcher;
+
+                watcher.on("write", event => {
                     firedEvents.push(event);
                 });
             });
 
             afterEach(() => {
-                obj.removeAllListeners("write");
+                watcher.removeAllListeners("write");
                 firedEvents.splice(0, firedEvents.length);
             });
 
             describe("Primitives", () => {
                 test("Changed", () => {
-                    obj.a ++;
-                    obj.b = "hello world";
-                    obj.c = false;
+                    object.a ++;
+                    object.b = "hello world";
+                    object.c = false;
 
                     expect(firedEvents[0].key).toBe("a");
                     expect(firedEvents[0].newValue).toBe(3);
@@ -316,9 +321,9 @@ describe("WatchedObject", () => {
                 });
 
                 test("Unchanged", () => {
-                    obj.a = 2
-                    obj.b = "test";
-                    obj.c = true;
+                    object.a = 2
+                    object.b = "test";
+                    object.c = true;
 
                     expect(firedEvents[0].key).toBe("a");
                     expect(firedEvents[0].newValue).toBe(2);
@@ -336,7 +341,7 @@ describe("WatchedObject", () => {
 
             describe("Objects", () => {
                 test("Reassignment", () => {
-                    obj.x = {
+                    object.x = {
                         i: 2
                     };
 
@@ -355,8 +360,8 @@ describe("WatchedObject", () => {
                 });
 
                 test("Property assignment", () => {
-                    obj.x.p = 2;
-                    obj.x.z.w.i = 5;
+                    object.x.p = 2;
+                    object.x.z.w.i = 5;
 
                     expect(firedEvents[0].key).toBe("x.p");
                     expect(firedEvents[0].newValue).toBe(2);
@@ -368,18 +373,19 @@ describe("WatchedObject", () => {
                 });
 
                 test("Disable old proxies", () => {
-                    const old = obj.x;
+                    const old = object.x;
 
-                    obj.x = {
+                    object.x = {
                         i: 2
                     };
 
-                    obj.x.i = 3;
+                    object.x.i = 3;
 
+                    expect(firedEvents).toHaveLength(2);
                     expect(firedEvents[1].key).toBe("x.i");
                     expect(firedEvents[1].newValue).toBe(3);
                     expect(firedEvents[1].oldValue).toBe(2);
-                    expect(firedEvents).toHaveLength(2);
+
 
                     old.p = 1;
 
@@ -389,7 +395,7 @@ describe("WatchedObject", () => {
 
             describe("Arrays", () => {
                 test("Reassignment", () => {
-                    obj.y = [1, 2, 3];
+                    object.y = [1, 2, 3];
 
                     expect(firedEvents[0].key).toBe("y");
 
@@ -405,7 +411,7 @@ describe("WatchedObject", () => {
                 });
 
                 test("Push", () => {
-                    obj.y.push(1);
+                    object.y.push(1);
 
                     expect(firedEvents[0].key).toBe("y.1");
                     expect(firedEvents[0].newValue).toBe(1);
@@ -419,7 +425,7 @@ describe("WatchedObject", () => {
                 });
 
                 test("Index assignment", () => {
-                    obj.y[0] = 5;
+                    object.y[0] = 5;
 
                     expect(firedEvents[0].key).toBe("y.0");
                     expect(firedEvents[0].newValue).toBe(5);
@@ -431,7 +437,7 @@ describe("WatchedObject", () => {
         });
 
         describe("Delete", () => {
-            const obj = new WatchedObject({
+            const { proxy: object, watcher } = new WatchedObject({
                 a: 2,
                 b: 3,
                 c: 5,
@@ -445,23 +451,23 @@ describe("WatchedObject", () => {
                 }
             });
 
-            const firedEvents: WatchedObjectEvents["deleteKey"][] = [];
+            const firedEvents: WatchedObjectEvents["delete"][] = [];
 
             beforeEach(() => {
-                obj.on("deleteKey", event => {
+                watcher.on("delete", event => {
                     firedEvents.push(event);
                 });
             });
 
             afterEach(() => {
-                obj.removeAllListeners("deleteKey");
+                watcher.removeAllListeners("delete");
                 firedEvents.splice(0, firedEvents.length);
             });
 
             test("First-level properties", () => {
-                delete (obj as any).a;
-                delete (obj as any).b;
-                delete (obj as any).c;
+                delete (object as any).a;
+                delete (object as any).b;
+                delete (object as any).c;
 
                 expect(firedEvents[0].key).toBe("a");
                 expect(firedEvents[0].oldValue).toBe(2);
@@ -476,9 +482,9 @@ describe("WatchedObject", () => {
             });
 
             test("Deep properties", () => {
-                delete (obj as any).x.y.z.w;
-                delete (obj as any).x.y.z;
-                delete (obj as any).x;
+                delete (object as any).x.y.z.w;
+                delete (object as any).x.y.z;
+                delete (object as any).x;
 
                 expect(firedEvents[0].key).toBe("x.y.z.w");
                 expect(firedEvents[0].oldValue).toBe(3);

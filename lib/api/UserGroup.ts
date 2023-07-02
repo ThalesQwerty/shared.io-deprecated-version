@@ -28,6 +28,14 @@ export class UserGroup extends Group<User> {
     public static readonly NONE: BuiltinUserGroup = "nobody";
     public static readonly INHERIT = null;
 
+    /**
+     * Built-in empty user group. Cannot be altered.
+     */
+    public static readonly none = new UserGroup().lock();
+
+    /**
+     * Reads a property from an entity
+     */
     public get read() {
         return this._read.call.bind(this._read);
     }

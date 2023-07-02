@@ -1,7 +1,7 @@
 import { Channel, DECORATORS, Decorators, User } from ".";
-import { Group, StringKeyOf, UUID, WatchedObject } from "../utils";
+import { CustomEventEmitter, UUID, WatchedObject } from "../utils";
 import _ from "lodash";
-import { Schema, EntityBlankSchema } from "./Schema";
+import { Schema, EntityBlankSchema, EntityPolicy } from "./Schema";
 import { UserGroup, BuiltinUserGroup, HiddenBuiltingUserGroup } from "./UserGroup";
 
 function blankSchema(type: string): EntityBlankSchema {
@@ -20,12 +20,9 @@ type EntityUserGroups = {
     [key in Exclude<BuiltinUserGroup, HiddenBuiltingUserGroup>]: UserGroup
 }
 
-export type DefaultEntityKey = Exclude<StringKeyOf<Entity>,"delete">;
-export type EntityKey<EntityType extends Entity> = Exclude<StringKeyOf<EntityType>, DefaultEntityKey>;
-
 export type OutputHandler<T = unknown> = (info: {oldValue: T, newValue: T, user: User, entity: Entity, key: string }) => T;
 
-export class Entity<ChannelType extends Channel = Channel> extends WatchedObject<object, EntityEvents> implements EntityUserGroups {
+export class Entity<ChannelType extends Channel = Channel> extends CustomEventEmitter<EntityEvents> implements EntityUserGroups {
     /**
      * The path in which this entity can be found on the server's entity tree
      */
@@ -41,6 +38,16 @@ export class Entity<ChannelType extends Channel = Channel> extends WatchedObject
         const { type } = this;
         return Schema.entities[type] ??= blankSchema(type);
     }
+
+    /**
+     * Access rules for this entity's keys
+     */
+    public readonly policy: EntityPolicy = {
+        delete: {
+            input: UserGroup.none,
+            output: UserGroup.none
+        }
+    };
 
     public static get schema() {
         const type = this.prototype.constructor.name;
@@ -84,7 +91,7 @@ export class Entity<ChannelType extends Channel = Channel> extends WatchedObject
     /**
      * Built-in empty user group. Cannot be altered.
      */
-    private readonly nobody: UserGroup = UserGroup.empty as unknown as UserGroup;
+    private readonly nobody: UserGroup = UserGroup.none;
 
     constructor (
         /**
@@ -99,7 +106,8 @@ export class Entity<ChannelType extends Channel = Channel> extends WatchedObject
          */
         public readonly owner?: User
     ) {
-        super(undefined, ["channel", "owner", "owners", "viewers", "nobody", "schema"]);
+        super();
+        const { proxy, watcher } = new WatchedObject(this, ["channel", "owner", "owners", "viewers", "nobody", "schema", "policy", "type", "path"]);
 
         this.viewers = channel.users;
         if (owner) this.owners.add(owner);
@@ -114,7 +122,7 @@ export class Entity<ChannelType extends Channel = Channel> extends WatchedObject
             return (this as any)[propertySchema.outputGroup] as UserGroup|undefined;
         }
 
-        this.on("write", ({ key, newValue }) => {
+        watcher.on("write", ({ key, newValue }) => {
             getWatchList(key)?.read({
                 entity: this,
                 key,
@@ -122,7 +130,7 @@ export class Entity<ChannelType extends Channel = Channel> extends WatchedObject
             });
         });
 
-        this.on("call", ({ key, parameters, returnedValue }) => {
+        watcher.on("call", ({ key, parameters, returnedValue }) => {
             getWatchList(key)?.listen({
                 entity: this,
                 methodName: key,
@@ -130,6 +138,19 @@ export class Entity<ChannelType extends Channel = Channel> extends WatchedObject
                 returnedValue
             });
         });
+
+        const propertySchema = this.schema.properties;
+
+        for (const key in propertySchema) {
+            const { inputGroup, outputGroup } = propertySchema[key];
+
+            this.policy[key] = {
+                input: (this as any)[inputGroup] ?? UserGroup.none,
+                output: (this as any)[outputGroup] ?? UserGroup.none
+            }
+        }
+
+        return proxy;
     }
 
     /**
