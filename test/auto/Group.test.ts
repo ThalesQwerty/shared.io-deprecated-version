@@ -1,3 +1,5 @@
+import { User, UserGroup } from "../../lib/api";
+import { Client, Server } from "../../lib/connection";
 import { Group } from "../../lib/utils";
 
 describe("Group", () => {
@@ -127,5 +129,22 @@ describe("Group", () => {
 
         expect(x.count).toBe(6);
         expect(x.hasOnly(1, 2, 4, 5, 7, 8)).toBe(true);
+    });
+
+    test("User groups", () => {
+        const server = new Server();
+        const userA = new User(new Client(server));
+        const userB = new User(new Client(server));
+
+        const group = new UserGroup(userA);
+
+        expect(group.has(userA)).toBe(true);
+        expect(group.has(userB)).toBe(false);
+
+        group.add(userB);
+        group.remove(userA);
+
+        expect(group.has(userA)).toBe(false);
+        expect(group.has(userB)).toBe(true);
     });
 })
