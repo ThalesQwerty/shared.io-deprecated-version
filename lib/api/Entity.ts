@@ -27,7 +27,7 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
      * The path in which this entity can be found on the server's entity tree
      */
     public get path() {
-        return [this.channel.path, this.type, UUID()].join("/");
+        return [this.channel.path, this.type, this.id].join("/");
     }
 
     public get type() {
@@ -117,13 +117,13 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
 
         const getWatchList = (key: string) => {
             const propertySchema = this.schema.properties[key];
-            if (!propertySchema?.outputGroup || propertySchema.outputGroup === UserGroup.NONE) return;
+            if (!propertySchema?.outputGroupName || propertySchema.outputGroupName === UserGroup.NONE) return;
 
-            return (this as any)[propertySchema.outputGroup] as UserGroup|undefined;
+            return (this as any)[propertySchema.outputGroupName] as UserGroup|undefined;
         }
 
         watcher.on("write", ({ key, newValue }) => {
-            getWatchList(key)?.read({
+            this.policy[key]?.output?.read({
                 entity: this,
                 key,
                 value: newValue
@@ -131,7 +131,7 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
         });
 
         watcher.on("call", ({ key, parameters, returnedValue }) => {
-            getWatchList(key)?.listen({
+            this.policy[key]?.output?.listen({
                 entity: this,
                 methodName: key,
                 parameters,
@@ -142,11 +142,11 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
         const propertySchema = this.schema.properties;
 
         for (const key in propertySchema) {
-            const { inputGroup, outputGroup } = propertySchema[key];
+            const { inputGroupName, outputGroupName } = propertySchema[key];
 
             this.policy[key] = {
-                input: (this as any)[inputGroup] ?? UserGroup.none,
-                output: (this as any)[outputGroup] ?? UserGroup.none
+                input: UserGroup.force((this as any)[inputGroupName]),
+                output: UserGroup.force((this as any)[outputGroupName])
             }
         }
 
