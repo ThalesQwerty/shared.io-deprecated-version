@@ -2,84 +2,141 @@ import _ from "lodash";
 import { KeyValue } from ".";
 
 interface Node<T = any> {
-    [key: string]: Node | T;
+    /**
+     * The value stored on this node
+     */
+    value?: T,
+
+    /**
+     * The nodes which directly descend from this
+     */
+    children: KeyValue<Node<T>>
 }
 
+const PATH_SEPARATOR = ".";
 
+function emptyNode<T>(): Node<T> {
+    return {children: {}};
+}
 export class Tree<T = any> {
-    private readonly nodes: Node = {};
-
-    /**
-     * Lists all valid paths on the tree
-     */
-    public readonly paths: string[] = [];
-
-    /**
-     * Lists all the values on the tree
-     */
-    public get values() {
-        return this.paths.map(path => this.get(path));
+    private static pathSteps(path: string) {
+        return path ? path.replace(/\//g, PATH_SEPARATOR).split(PATH_SEPARATOR) : [];
     }
 
     /**
-     * Creates a single-depth object with all paths and values of the tree
+     * Searches for a node in a tree, given its expected path.
+     * @param startingNode The starting point for the search. Attempts to find the wanted node somewhere in the descendents of the starting node.
+     * @param relativePath The path (relative to the starting point) where the node is expected to be found.
+     * @returns A descendent node from the starting point, or `undefined` if not found.
      */
-    public get flat(): KeyValue<T> {
-        return this.paths.reduce((object, path) => ({...object, [path]: this.get(path)}), {});
-    }
+    public static findNode<T = any>(startingNode: Node<T>, relativePath: string) {
+        const steps = Tree.pathSteps(relativePath);
+        let currentNode: Node<T>|undefined = startingNode;
 
-    private parsePath(path: string) {
-        return path.replace(/\//g, ".");
-    }
-
-    /**
-     * Gets a value from the tree
-     * @param path
-     * @param value
-     */
-    public get(path: string): T|undefined {
-        return this.paths.includes(path) ? _.get(this.nodes, this.parsePath(path)) : undefined;
-    }
-
-    /**
-     * Writes a value into the tree
-     * @param path
-     * @param value
-     */
-    public set(path: string, value: T) {
-        _.set(this.nodes, this.parsePath(path), value);
-
-        if (!this.paths.includes(path)) {
-            this.paths.push(path);
+        for (const step of steps) {
+            if (!currentNode) break;
+            currentNode = currentNode.children?.[step];
         }
+
+        return currentNode;
     }
 
     /**
-     * Removes a value from the tree
-     * @param path
-     * @returns `true` if there was a value, `false` otherwise.
+     * Creates a new node in a tree, if it doesn't already exist.
+     * @param startingNode The starting point for the search. Attempts to create the new node somewhere in the descendents of the starting node.
+     * @param relativePath The path (relative to the starting point) where the node is expected to be created.
+     * @returns The created node, or the one that already existed.
      */
-    public unset(path: string) {
-        const value = this.get(path);
+    public static createNode<T = any>(startingNode: Node<T>, relativePath: string) {
+        const steps = Tree.pathSteps(relativePath);
+        let currentNode: Node<T> = startingNode;
 
-        if (value) {
-            const index = this.paths.indexOf(path);
-            if (index >= 0) this.paths.splice(index, 1);
+        for (const step of steps) {
+            currentNode = currentNode.children[step] ??= emptyNode();
+        }
 
-            _.unset(this.nodes, this.parsePath(path));
-            return true;
+        return currentNode;
+    }
+
+    /**
+     * Deletes an existing node.
+     * @param startingNode The starting point for the search. Attempts to create the new node somewhere in the descendents of the starting node.
+     * @param relativePath The path (relative to the starting point) where the node is expected to be created.
+     * @returns The created node, or the one that already existed.
+     */
+    public static deleteNode<T = any>(startingNode: Node<T>, relativePath: string) {
+        const steps = Tree.pathSteps(relativePath);
+        let currentNode: Node<T>|undefined = startingNode;
+
+        for (let i = 0; i < steps.length; i++) {
+            if (!currentNode) return false;
+
+            const step = steps[i];
+
+            if (i < steps.length - 1) {
+                currentNode = currentNode.children?.[step];
+            } else {
+                delete currentNode.children?.[step];
+                return true;
+            }
         }
 
         return false;
     }
 
     /**
-     * Removes all values from the tree
+     * The root node. All other nodes descend from this.
      */
-    public clear() {
-        Object.keys(this.nodes).forEach(key => {
-            delete this.nodes[key];
-        });
-        this.paths.splice(0, this.paths.length);
+    public get root() {
+        return this._root;
+    }
+    private _root: Node<T> = emptyNode()
+
+    /**
+     * Gets a node from the tree
+     * @param path The path, starting from the root
+     * @returns The found node, or `undefined` if not found.
+     */
+    public node(path: string) {
+        return Tree.findNode(this.root, path);
+    }
+
+    /**
+     * Gets a value from the tree
+     * @param path The path, starting from the root
+     * @returns The value obtained, or `undefined` if not found.
+     */
+    public get(path: string) {
+        return Tree.findNode(this.root, path)?.value;
+    }
+
+    /**
+     * Writes a value into the tree
+     * @param path The path, starting from the root
+     * @param value The value you want to write
+     * @returns The new value written
+     */
+    public set(path: string, value?: T) {
+        return Tree.createNode(this.root, path).value = value;
+    }
+
+    /**
+     * Deletes an existing node
+     * @param path The path, starting from the root
+     * @returns `true` if there was a value, `false` otherwise.
+     */
+    public unset(path: string) {
+        return Tree.deleteNode(this.root, path);
+    }
+
+    /**
+     * Removes all nodes from the tree
+     */
+    public reset() {
+        this._root = emptyNode();
+    }
+
+    constructor (rootValue?: T) {
+        this._root.value = rootValue;
     }
 }
