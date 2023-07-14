@@ -1,8 +1,9 @@
-import { KeyValue, UUID, WatchedObject, Group } from "../utils";
+import { UUID, GroupEvents } from "../utils";
 import _ from "lodash";
 import { User } from ".";
 import { Server } from "../connection";
 import { UserGroup } from "./UserGroup";
+import { CustomEventEmitter } from "../utils";
 
 export interface ChannelEvents {
     delete: {},
@@ -14,7 +15,7 @@ export interface ChannelEvents {
     }
 }
 
-export class Channel extends WatchedObject<object, ChannelEvents> {
+export class Channel extends CustomEventEmitter<ChannelEvents> {
     /**
      * Verifies whether or not an user can join a given channel
      */
@@ -28,7 +29,7 @@ export class Channel extends WatchedObject<object, ChannelEvents> {
      * The path in which this channel can be found on the server's channel tree
      */
     public get path() {
-        return [this.type, UUID()].join("/");
+        return [this.type, this.id].join("/");
     }
 
     public get type() {
@@ -54,9 +55,25 @@ export class Channel extends WatchedObject<object, ChannelEvents> {
     public maxUsers: number = Infinity;
 
     constructor(public readonly server: Server) {
-        super(undefined, ["server"]);
+        super();
 
         this.server.channels.set(this.path, this);
+
+        const emitJoin = (event: GroupEvents<User>["add"]) => {
+            this.emit("join", { user: event.item });
+        };
+
+        const emitLeave = (event: GroupEvents<User>["remove"]) => {
+            this.emit("join", { user: event.item });
+        };
+
+        this.users.on("add", emitJoin);
+        this.users.on("remove", emitLeave);
+
+        this.on("delete", () => {
+            this.users.removeListener("add", emitJoin);
+            this.users.removeListener("remove", emitJoin);
+        });
     }
 
     /**
