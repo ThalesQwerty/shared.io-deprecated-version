@@ -8,6 +8,7 @@ export interface CustomEventEmitter<EventList extends KeyValue> extends EventEmi
     once: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
     addListener: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
     removeListener: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
+    off: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
     prependListener: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
     emit: <name extends keyof EventList>(event: name extends string ? name : symbol, parameters: EventList[name]) => boolean;
     removeAllListeners: <name extends keyof EventList>(event?: name extends string ? name : symbol) => this;

@@ -1,5 +1,5 @@
 import EventEmitter from "node:events";
-import { CustomEventEmitter, KeyValue, StringKeyOf } from ".";
+import { ComputedProperty, CustomEventEmitter, Debouncer, KeyValue, StringKeyOf } from ".";
 import _  from "lodash";
 
 export interface WatchedObjectEvents {
@@ -23,7 +23,50 @@ export interface WatchedObjectEvents {
     }
 }
 
-export type ObjectWatcher = CustomEventEmitter<WatchedObjectEvents>;
+export class ObjectWatcher<ObjectType extends Object = Object> extends CustomEventEmitter<WatchedObjectEvents> {
+    /**
+     * Dynamically infers the value of a given key in the `target`
+     * object, based on the value of its other keys.
+     *
+     * These other keys are considered dependencies.
+     * Whenever any of the dependencies change, a new value is inferred and
+     * then the `watcher` emits a `"write"` event accounting for this change.
+     *
+     * Note: The inferred value is not actually written into the `target`,
+     * so it may differ from its actual value (or there may be no actual
+     * value at all).
+     *
+     * @param key
+     * The key which value will be dynamically inferred.
+     *
+     * @param algorithm
+     * Method used to compute the inferred value.
+     * Whenever other keys from the `target` are read inside the function body,
+     * they become dependencies. The inference algorithm will be called
+     * whenever any of the dependencies change value.
+     *
+     * @returns
+     * A computed property representing the inferred value.
+     */
+    public infer<T = any>(key: StringKeyOf<ObjectType>, algorithm: (proxy: ObjectType) => T): ComputedProperty<T, ObjectType> {
+        let lastInferredValue: T;
+        const computedProperty = new ComputedProperty(this.parent, algorithm, (newValue, oldValue) => {
+            if (newValue !== lastInferredValue) {
+                this.emit("write", {
+                    key,
+                    newValue,
+                    oldValue
+                });
+            }
+        });
+        lastInferredValue = computedProperty.value;
+        return computedProperty;
+    }
+
+    constructor(private readonly parent: WatchedObject<ObjectType>) {
+        super();
+    }
+}
 
 /**
  * For a given `target` object, creates a new `proxy` object and its `watcher`. Whenever something happens in the `proxy`, it will be replicated on the `target` and the `watcher` will emit a corresponding event that can be listened to.
@@ -42,8 +85,7 @@ export class WatchedObject<ObjectType extends Object = Object> {
      * - `call`: Whenever some method is called
      * - `delete`: Whenever some property/method is deleted
      */
-    public readonly watcher = new CustomEventEmitter<WatchedObjectEvents>();
-
+    public readonly watcher: ObjectWatcher<ObjectType> = new ObjectWatcher(this);
 
     constructor(
         /**
@@ -54,7 +96,7 @@ export class WatchedObject<ObjectType extends Object = Object> {
          * Defines which keys will not be watched. (Only top-level keys are supported)
          */
         ignoreKeys: string[] = [],
-        ignoreObjects: WatchedObject[] = []
+        ignoreObjects: WatchedObject<any>[] = []
     ) {
         const children: KeyValue<Object> = {};
 
@@ -71,12 +113,20 @@ export class WatchedObject<ObjectType extends Object = Object> {
             const {proxy: newChild, watcher: newProxy} = new WatchedObject(childObject, [], [...ignoreObjects, this]);
             children[key] = newChild;
 
+            newProxy.on("read", event => {
+                if (children[key] === newChild) {
+                    this.watcher.emit("read", {
+                        ...event,
+                        key: `${key}.${event.key}`
+                    })
+                }
+            });
+
             newProxy.on("write", event => {
                 if (children[key] === newChild) {
                     this.watcher.emit("write", {
-                        key: `${key}.${event.key}`,
-                        oldValue: event.oldValue,
-                        newValue: event.newValue
+                        ...event,
+                        key: `${key}.${event.key}`
                     })
                 }
             });
@@ -84,9 +134,8 @@ export class WatchedObject<ObjectType extends Object = Object> {
             newProxy.on("call", event => {
                 if (children[key] === newChild) {
                     this.watcher.emit("call", {
-                        key: `${key}.${event.key}`,
-                        parameters: event.parameters,
-                        returnedValue: event.returnedValue
+                        ...event,
+                        key: `${key}.${event.key}`
                     })
                 }
             });
@@ -94,8 +143,8 @@ export class WatchedObject<ObjectType extends Object = Object> {
             newProxy.on("delete", event => {
                 if (children[key] === newChild) {
                     this.watcher.emit("delete", {
-                        key: `${key}.${event.key}`,
-                        oldValue: event.oldValue
+                        ...event,
+                        key: `${key}.${event.key}`
                     })
                 }
             });
@@ -112,6 +161,11 @@ export class WatchedObject<ObjectType extends Object = Object> {
                 const value = target[key];
                 const isObject = value && typeof value === "object";
                 const isFunction = value && typeof value === "function";
+
+                this.watcher.emit("read", {
+                    key,
+                    value
+                });
 
                 return isObject ? (children[key] ??= createChild(key, value))
                     : isFunction ? (children[key] ??= new Proxy(value, {

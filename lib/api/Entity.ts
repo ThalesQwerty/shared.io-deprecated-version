@@ -1,5 +1,5 @@
 import { Channel, DECORATORS, Decorators, User } from ".";
-import { CustomEventEmitter, UUID, WatchedObject } from "../utils";
+import { CustomEventEmitter, StringKeyOf, UUID, WatchedObject, WatchedObjectEvents } from "../utils";
 import _ from "lodash";
 import { Schema, EntityBlankSchema, EntityPolicy } from "./Schema";
 import { UserGroup, BuiltinUserGroup, HiddenBuiltingUserGroup } from "./UserGroup";
@@ -14,6 +14,11 @@ function blankSchema(type: string): EntityBlankSchema {
 
 export interface EntityEvents {
     delete: {},
+    output: {
+        key: string,
+        value: unknown,
+        group: UserGroup
+    }
 }
 
 type EntityUserGroups = {
@@ -128,16 +133,28 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
 
         channel.entities.set(this.localPath, this);
 
-        watcher.on("write", ({ key, newValue }) => {
-            this.policy[key]?.output?.read({
+        watcher.on("write", ({ key, newValue, oldValue }) => {
+            const group = this.policy[key]?.output;
+            if (!group || newValue === oldValue) return;
+
+            group.read({
                 entity: this,
                 key,
                 value: newValue
             });
+
+            this.emit("output", {
+                key,
+                value: newValue,
+                group
+            });
         });
 
         watcher.on("call", ({ key, parameters, returnedValue }) => {
-            this.policy[key]?.output?.listen({
+            const group = this.policy[key]?.output;
+            if (!group) return;
+
+            group.listen({
                 entity: this,
                 methodName: key,
                 parameters,
@@ -148,11 +165,19 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
         const propertySchema = this.schema.properties;
 
         for (const key in propertySchema) {
-            const { inputGroupName, outputGroupName } = propertySchema[key];
+            const {
+                inputGroupName,
+                outputGroupName,
+                getter
+            } = propertySchema[key];
 
             this.policy[key] = {
                 input: UserGroup.force((this as any)[inputGroupName]),
                 output: UserGroup.force((this as any)[outputGroupName])
+            }
+
+            if (getter) {
+                watcher.infer(key as StringKeyOf<this>, getter.bind(proxy));
             }
         }
 

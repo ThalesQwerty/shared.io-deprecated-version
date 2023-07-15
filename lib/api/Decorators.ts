@@ -45,7 +45,7 @@ export interface Decorators<EntityType extends Entity = Entity> {
 
     /**
      * Defines the access rules for this property.
-     * 
+     *
      * @param inputGroup If not null, defines a given user group on this entity as the one who's able to write into this property (or to directly call it, if it's a method).
      * @param outputGroup If not null, defines a given user group on this entity as the one who's able to read this property (or to listen to its calls, if it's a method).
      */
@@ -74,6 +74,9 @@ const DECORATORS: Decorators = {
             const rules = getPropertySchema(entity, propertyName);
             if (!rules) return;
 
+            const property = Object.getOwnPropertyDescriptor(entity, propertyName);
+            rules.getter = property?.get;
+            rules.setter = property?.set;
             rules.inputGroupName = inputGroupName ?? rules.inputGroupName;
             rules.outputGroupName = outputGroupName ?? rules.outputGroupName;
         }

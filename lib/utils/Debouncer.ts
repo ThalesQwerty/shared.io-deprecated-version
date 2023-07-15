@@ -1,7 +1,9 @@
 export class Debouncer<ParameterType = any, ReturnType = any> {
     private readonly queue: ParameterType[] = [];
 
-    constructor (public readonly method: (parameters: ParameterType[]) => ReturnType) {}
+    constructor (public readonly method: (parameters: ParameterType[]) => ReturnType) {
+        this.call = this.call.bind(this);
+    }
 
     call (parameter: ParameterType) {
         if (!this.queue.length) {

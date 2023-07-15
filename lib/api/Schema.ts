@@ -34,10 +34,15 @@ export interface EntityBlankSchema extends EntitySchema {
     userGroups: BuiltinUserGroup[]
 }
 
+export type EntityPropertyGetter = () => unknown;
+export type EntityPropertySetter = (newValue: unknown) => void;
+
 export interface EntityPropertySchema {
     name: string;
     inputGroupName: string;
     outputGroupName: string;
+    getter?: EntityPropertyGetter,
+    setter?: EntityPropertySetter
 }
 
 export type EntityPolicy = Partial<{
