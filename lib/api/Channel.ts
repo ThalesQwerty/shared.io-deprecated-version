@@ -1,6 +1,6 @@
-import { UUID, GroupEvents } from "../utils";
+import { UUID, GroupEvents, Tree } from "../utils";
 import _ from "lodash";
-import { User } from ".";
+import { Entity, User } from ".";
 import { Server } from "../connection";
 import { UserGroup } from "./UserGroup";
 import { CustomEventEmitter } from "../utils";
@@ -32,6 +32,9 @@ export class Channel extends CustomEventEmitter<ChannelEvents> {
         return [this.type, this.id].join("/");
     }
 
+    /**
+     * The name of this channel's class
+     */
     public get type() {
         return this.constructor.name;
     }
@@ -48,6 +51,11 @@ export class Channel extends CustomEventEmitter<ChannelEvents> {
     public readonly users = new UserGroup().lock();
 
     /**
+     * The entities which are in this channel
+     */
+    public readonly entities = new Tree<Entity>();
+
+    /**
      * The maximum amount of users allowed on this channel.
      *
      * Default is `Infinity`
@@ -59,20 +67,26 @@ export class Channel extends CustomEventEmitter<ChannelEvents> {
 
         this.server.channels.set(this.path, this);
 
-        const emitJoin = (event: GroupEvents<User>["add"]) => {
-            this.emit("join", { user: event.item });
+        const handleJoin = (event: GroupEvents<User>["add"]) => {
+            const user = event.item;
+            user.channels.set(this.path, this);
+
+            this.emit("join", { user });
         };
 
-        const emitLeave = (event: GroupEvents<User>["remove"]) => {
-            this.emit("join", { user: event.item });
+        const handleLeave = (event: GroupEvents<User>["remove"]) => {
+            const user = event.item;
+            user.channels.remove(this.path);
+
+            this.emit("join", { user });
         };
 
-        this.users.on("add", emitJoin);
-        this.users.on("remove", emitLeave);
+        this.users.on("add", handleJoin);
+        this.users.on("remove", handleLeave);
 
         this.on("delete", () => {
-            this.users.removeListener("add", emitJoin);
-            this.users.removeListener("remove", emitJoin);
+            this.users.removeListener("add", handleJoin);
+            this.users.removeListener("remove", handleLeave);
         });
     }
 
@@ -80,7 +94,7 @@ export class Channel extends CustomEventEmitter<ChannelEvents> {
      * Deletes this channel
      */
     delete() {
-        this.server.channels.unset(this.path);
+        this.server.channels.remove(this.path);
 
         this.emit("delete", {});
     }

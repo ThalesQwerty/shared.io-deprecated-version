@@ -1,7 +1,7 @@
 import _ from "lodash";
 import { KeyValue } from ".";
 
-interface Node<T = any> {
+export interface Node<T = any> {
     /**
      * The value stored on this node
      */
@@ -13,130 +13,135 @@ interface Node<T = any> {
     children: KeyValue<Node<T>>
 }
 
-const PATH_SEPARATOR = ".";
-
-function emptyNode<T>(): Node<T> {
-    return {children: {}};
+export class TreeNode<T = any> {
+    constructor(
+        public value?: T,
+        public children: Partial<KeyValue<TreeNode<T>>> = {}
+    ) {}
 }
 export class Tree<T = any> {
-    private static pathSteps(path: string) {
-        return path ? path.replace(/\//g, PATH_SEPARATOR).split(PATH_SEPARATOR) : [];
+    private static splitPath(path: string) {
+        return path ? path.replace(/\//g, ".").split(".") : [];
     }
 
     /**
-     * Searches for a node in a tree, given its expected path.
-     * @param startingNode The starting point for the search. Attempts to find the wanted node somewhere in the descendents of the starting node.
-     * @param relativePath The path (relative to the starting point) where the node is expected to be found.
-     * @returns A descendent node from the starting point, or `undefined` if not found.
-     */
-    public static findNode<T = any>(startingNode: Node<T>, relativePath: string) {
-        const steps = Tree.pathSteps(relativePath);
-        let currentNode: Node<T>|undefined = startingNode;
-
-        for (const step of steps) {
-            if (!currentNode) break;
-            currentNode = currentNode.children?.[step];
-        }
-
-        return currentNode;
-    }
-
-    /**
-     * Creates a new node in a tree, if it doesn't already exist.
-     * @param startingNode The starting point for the search. Attempts to create the new node somewhere in the descendents of the starting node.
-     * @param relativePath The path (relative to the starting point) where the node is expected to be created.
-     * @returns The created node, or the one that already existed.
-     */
-    public static createNode<T = any>(startingNode: Node<T>, relativePath: string) {
-        const steps = Tree.pathSteps(relativePath);
-        let currentNode: Node<T> = startingNode;
-
-        for (const step of steps) {
-            currentNode = currentNode.children[step] ??= emptyNode();
-        }
-
-        return currentNode;
-    }
-
-    /**
-     * Deletes an existing node.
-     * @param startingNode The starting point for the search. Attempts to create the new node somewhere in the descendents of the starting node.
-     * @param relativePath The path (relative to the starting point) where the node is expected to be created.
-     * @returns The created node, or the one that already existed.
-     */
-    public static deleteNode<T = any>(startingNode: Node<T>, relativePath: string) {
-        const steps = Tree.pathSteps(relativePath);
-        let currentNode: Node<T>|undefined = startingNode;
-
-        for (let i = 0; i < steps.length; i++) {
-            if (!currentNode) return false;
-
-            const step = steps[i];
-
-            if (i < steps.length - 1) {
-                currentNode = currentNode.children?.[step];
-            } else {
-                delete currentNode.children?.[step];
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * The root node. All other nodes descend from this.
-     */
-    public get root() {
-        return this._root;
-    }
-    private _root: Node<T> = emptyNode()
-
-    /**
-     * Gets a node from the tree
+     * Finds a node from the tree
      * @param path The path, starting from the root
      * @returns The found node, or `undefined` if not found.
      */
-    public node(path: string) {
-        return Tree.findNode(this.root, path);
+    public find(path: string) {
+        const steps = Tree.splitPath(path);
+        let currentNode: TreeNode<T> | undefined = this.root;
+
+        for (const step of steps) {
+            if (!currentNode) break;
+            currentNode = currentNode.children[step];
+        }
+
+        return currentNode;
+    }
+
+
+    /**
+     * Appends a node into the tree
+     * @param path The path, starting from the root
+     * @param node The node to be appended. If omitted, creates a new empty one.
+     * @returns The appended node
+     */
+    public append(path: string, node: TreeNode<T> = new TreeNode<T>()) {
+        const steps = Tree.splitPath(path);
+        let currentNode: TreeNode<T> = this.root;
+
+        for (let i = 0; i < steps.length; i++) {
+            const step = steps[i];
+            const isLastStep = i === steps.length - 1;
+
+            if (isLastStep) {
+                return currentNode.children[step] = node;
+            }
+
+            currentNode = currentNode.children[step] ??= new TreeNode<T>();
+        }
+
+        return currentNode;
     }
 
     /**
-     * Gets a value from the tree
+     * Attempts to find a node from the tree. If not found, appends a new one into the given path.
+     * @param path The path, starting from the root
+     * @param node The node to be appended if the given path is empty. If omitted, creates a new empty one.
+     * @returns The found node, or `undefined` if not found.
+     */
+    public findOrAppend(path: string, node: TreeNode<T> = new TreeNode<T>()) {
+        const steps = Tree.splitPath(path);
+        let currentNode: TreeNode<T> = this.root;
+
+        for (let i = 0; i < steps.length; i++) {
+            const step = steps[i];
+            const isLastStep = i === steps.length - 1;
+
+            if (isLastStep) {
+                return currentNode.children[step] ??= node;
+            }
+
+            currentNode = currentNode.children[step] ??= new TreeNode<T>();
+        }
+
+        return currentNode;
+    }
+
+    /**
+     * Removes an existing node from the tree
+     * @param path The path, starting from the root
+     * @returns The removed node, or `undefined` if it has not been found.
+     */
+    public remove(path: string) {
+        const steps = Tree.splitPath(path);
+        let currentNode: TreeNode<T> | undefined = this.root;
+
+        for (let i = 0; i < steps.length; i++) {
+            if (!currentNode) return undefined;
+
+            const step = steps[i];
+            const isLastStep = i === steps.length - 1
+
+            if (isLastStep) {
+                const deleted = currentNode.children?.[step];
+                delete currentNode.children?.[step];
+                return deleted;
+            }
+
+            currentNode = currentNode.children?.[step];
+        }
+
+        return undefined;
+    }
+
+    /**
+     * Finds a node from the tree and returns its value
      * @param path The path, starting from the root
      * @returns The value obtained, or `undefined` if not found.
      */
     public get(path: string) {
-        return Tree.findNode(this.root, path)?.value;
+        return this.find(path)?.value;
     }
 
     /**
-     * Writes a value into the tree
+     * Finds or appends a node into the tree and sets its value
      * @param path The path, starting from the root
-     * @param value The value you want to write
-     * @returns The new value written
+     * @param value The value to be written
+     * @returns The value that has been written
      */
     public set(path: string, value?: T) {
-        return Tree.createNode(this.root, path).value = value;
+        return this.findOrAppend(path).value = value;
     }
 
-    /**
-     * Deletes an existing node
-     * @param path The path, starting from the root
-     * @returns `true` if there was a value, `false` otherwise.
-     */
-    public unset(path: string) {
-        return Tree.deleteNode(this.root, path);
-    }
+    public root: TreeNode<T>;
 
-    /**
-     * Removes all nodes from the tree
-     */
-    public reset() {
-        this._root = emptyNode();
-    }
-
-    constructor (rootValue?: T) {
-        this._root.value = rootValue;
+    constructor(rootNode: TreeNode<T>)
+    constructor(rootValue?: T)
+    constructor(root?: TreeNode<T>|T) {
+        if (root instanceof TreeNode) this.root = root;
+        else this.root = new TreeNode(root);
     }
 }

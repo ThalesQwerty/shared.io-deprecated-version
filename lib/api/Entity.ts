@@ -24,12 +24,26 @@ export type OutputHandler<T = unknown> = (info: {oldValue: T, newValue: T, user:
 
 export class Entity<ChannelType extends Channel = Channel> extends CustomEventEmitter<EntityEvents> implements EntityUserGroups {
     /**
-     * The path in which this entity can be found on the server's entity tree
+     * The path in which this entity can be found by the users' clients
      */
     public get path() {
         return [this.channel.path, this.type, this.id].join("/");
     }
 
+    /**
+     * The path in which this entity can be found on its channel's entity tree
+     */
+    private get localPath() {
+        return [this.type, this.id].join("/");
+    }
+
+    public get server() {
+        return this.channel.server;
+    }
+
+    /**
+     * The name of this entity's class
+     */
     public get type() {
         return this.constructor.name;
     }
@@ -112,15 +126,7 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
         this.viewers = channel.users;
         if (owner) this.owners.add(owner);
 
-        const { server } = channel;
-        server.entities.set(this.path, this);
-
-        const getWatchList = (key: string) => {
-            const propertySchema = this.schema.properties[key];
-            if (!propertySchema?.outputGroupName || propertySchema.outputGroupName === UserGroup.NONE) return;
-
-            return (this as any)[propertySchema.outputGroupName] as UserGroup|undefined;
-        }
+        channel.entities.set(this.localPath, this);
 
         watcher.on("write", ({ key, newValue }) => {
             this.policy[key]?.output?.read({
@@ -157,8 +163,7 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
      * Deletes this entity
      */
     delete() {
-        this.channel.server.entities.unset(this.path);
-
+        this.channel.entities.remove(this.localPath);
         this.emit("delete", {});
     }
 }

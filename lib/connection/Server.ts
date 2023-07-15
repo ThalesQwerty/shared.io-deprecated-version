@@ -20,13 +20,18 @@ export interface ServerConfig {
 const DEFAULT_CONFIG: ServerConfig = {
     port: 3000
 }
-
 export class Server extends CustomEventEmitter<ServerEvents> {
     public readonly config: ServerConfig = DEFAULT_CONFIG;
 
-    public readonly entities = new Tree<Entity>();
-    public readonly channels = new Tree<Channel>();
+    /**
+     * All users connected
+     */
     public readonly users = new Group<User>();
+
+    /**
+     * All channels on this server
+     */
+    public readonly channels = new Tree<Channel>();
 
     private wss?: WebSocketServer;
 

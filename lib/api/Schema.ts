@@ -36,8 +36,8 @@ export interface EntityBlankSchema extends EntitySchema {
 
 export interface EntityPropertySchema {
     name: string;
-    inputGroup: string;
-    outputGroup: string;
+    inputGroupName: string;
+    outputGroupName: string;
 }
 
 export type EntityPolicy = Partial<{
