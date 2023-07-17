@@ -16,8 +16,6 @@ export interface GroupEvents<T> {
  * Base class for groups of items. Behaves similarly to sets.
  */
 export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
-    public static readonly empty = new Group<never>().lock();
-
     private items: T[] = []
 
     /**
@@ -30,6 +28,7 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
 
         if (!this.has(item)) {
             this.items.push(item);
+            (this as any)?.on?.("write", (e: any) => console.log(e));
             this.emit("add", {
                 item,
                 group: this
@@ -228,6 +227,11 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
             this.emit("change", {});
         });
     }
+
+    /**
+     * Empty group. Cannot be altered.
+     */
+    public static readonly empty = new Group<never>().lock();
 
     /**
      * Generates a new group from the union of other groups.

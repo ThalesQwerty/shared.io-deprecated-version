@@ -8,11 +8,11 @@ export type EntityDefaultKey = Exclude<StringKeyOf<Entity>,"delete">;
 export type EntityKey<EntityType extends Entity> = Exclude<StringKeyOf<EntityType>, EntityDefaultKey>;
 
 export type EntityGroupKey<EntityType extends Entity = Entity> = BuiltinUserGroup | {
-    [key in EntityKey<EntityType>]: EntityType[key] extends Group<User> ? key : never
+    [key in EntityKey<EntityType>]: EntityType[key] extends User|Group<User>|undefined ? key : never
 }[EntityKey<EntityType>];
 
 export type EntityNonGroupKey<EntityType extends Entity = Entity> = {
-    [key in EntityKey<EntityType>]: EntityType[key] extends Group<User> ? never : key
+    [key in EntityKey<EntityType>]: EntityType[key] extends User|Group<User>|undefined  ? never : key
 }[EntityKey<EntityType>];
 
 export type EntityMethodKey<EntityType extends Entity = Entity> = EntityNonGroupKey<EntityType> & (BuiltinUserGroup | {
@@ -31,7 +31,7 @@ export interface EntitySchema {
 export interface EntityBlankSchema extends EntitySchema {
     type: string;
     properties: KeyValue<EntityPropertySchema>;
-    userGroups: BuiltinUserGroup[]
+    userGroups: (BuiltinUserGroup&string)[]
 }
 
 export type EntityPropertyGetter = () => unknown;

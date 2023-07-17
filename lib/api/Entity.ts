@@ -2,13 +2,13 @@ import { Channel, DECORATORS, Decorators, User } from ".";
 import { CustomEventEmitter, StringKeyOf, UUID, WatchedObject, WatchedObjectEvents } from "../utils";
 import _ from "lodash";
 import { Schema, EntityBlankSchema, EntityPolicy } from "./Schema";
-import { UserGroup, BuiltinUserGroup, HiddenBuiltingUserGroup } from "./UserGroup";
+import { UserGroup } from "./UserGroup";
 
 function blankSchema(type: string): EntityBlankSchema {
     return {
         type: type,
         properties: {},
-        userGroups: ["owners", "viewers", "nobody"]
+        userGroups: ["owner", "*", ""]
     };
 }
 
@@ -21,13 +21,9 @@ export interface EntityEvents {
     }
 }
 
-type EntityUserGroups = {
-    [key in Exclude<BuiltinUserGroup, HiddenBuiltingUserGroup>]: UserGroup
-}
-
 export type OutputHandler<T = unknown> = (info: {oldValue: T, newValue: T, user: User, entity: Entity, key: string }) => T;
 
-export class Entity<ChannelType extends Channel = Channel> extends CustomEventEmitter<EntityEvents> implements EntityUserGroups {
+export class Entity<ChannelType extends Channel = Channel> extends CustomEventEmitter<EntityEvents> {
     /**
      * The path in which this entity can be found by the users' clients
      */
@@ -86,31 +82,8 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
      * Random unique and universal identifier string for this entity.
      */
     public readonly id = UUID();
-
-    /**
-     * Built-in user group for defining the users who are allowed to
-     * edit this entity's properties and call its methods,
-     * when they are decorated with `@input`
-     *
-     * By default it contains only the original owner.
-     * It can be altered, although it's not advisable.
-     */
-    public readonly owners: UserGroup = new UserGroup();
-
-    /**
-     * Built-in user group for defining the users who are allowed to
-     * read this entity's properties and listen to its method calls,
-     * when they are decorated with `@output`
-     *
-     * By default it references the entity channel's user list, and therefore cannot be directly altered.
-     * If you wish to change it, reassign this value to a new user group on your class declaration.
-     */
-    public readonly viewers: UserGroup;
-
-    /**
-     * Built-in empty user group. Cannot be altered.
-     */
-    private readonly nobody: UserGroup = UserGroup.none;
+    
+    private readonly "*" = this.channel.users;
 
     constructor (
         /**
@@ -126,10 +99,7 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
         public readonly owner?: User
     ) {
         super();
-        const { proxy, watcher } = new WatchedObject(this, ["channel", "owner", "owners", "viewers", "nobody", "schema", "policy", "type", "path"]);
-
-        this.viewers = channel.users;
-        if (owner) this.owners.add(owner);
+        const { proxy, watcher } = new WatchedObject(this, ["channel", "owner", "schema", "policy", "type", "path"]);
 
         channel.entities.set(this.localPath, this);
 
@@ -174,12 +144,20 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
             this.policy[key] = {
                 input: UserGroup.force((this as any)[inputGroupName]),
                 output: UserGroup.force((this as any)[outputGroupName])
-            }
+            };
 
             if (getter) {
-                watcher.infer(key as StringKeyOf<this>, getter.bind(proxy));
+                const computedProperty = watcher.infer(key as StringKeyOf<this>, getter.bind(proxy));
+
+                this.on("delete", () => {
+                    computedProperty.disabled = true;
+                });
             }
         }
+
+        this.on("delete", () => {
+            watcher.removeAllListeners();
+        });
 
         return proxy;
     }
