@@ -1,9 +1,9 @@
 import { EventEmitter } from "node:events";
 import { KeyValue } from "./KeyValue";
-export class CustomEventEmitter<EventList extends KeyValue> extends EventEmitter {
-};
 
-export interface CustomEventEmitter<EventList extends KeyValue> extends EventEmitter {
+export class CustomEventEmitter<EventList extends KeyValue = {}> extends EventEmitter implements ICustomEventEmitter<EventList> {};
+
+export interface ICustomEventEmitter<EventList extends KeyValue = {}> extends EventEmitter {
     on: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
     once: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
     addListener: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;

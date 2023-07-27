@@ -1,6 +1,7 @@
 import { Channel, Entity, EntityKey, EntityMethodKey, UserGroup } from ".";
 import { Client } from "../connection";
-import { CustomEventEmitter, Tree } from "../utils";
+import { CustomEventEmitter } from "../utils";
+import { EntityTree } from "./EntityTree";
 
 export interface UserEvents {
 
@@ -16,27 +17,14 @@ export class User extends CustomEventEmitter<UserEvents> {
     private _asGroup: UserGroup|undefined;
 
     /**
-     * A tree containing the channles where this user currently is
+     * A tree containing the channels where this user currently is
      */
-    public readonly channels = new Tree<Channel>();
+    public readonly joinedChannels = new EntityTree<Channel>();
 
     /**
-     * Attempts to find an entity, given its path.
-     * @param path The wanted entity's path
-     * @returns The found entity, or `undefined` if none was found.
+     * A tree containing all the entities this user owns
      */
-    findEntity<EntityType extends Entity = Entity>(path: string) {
-        const splitPath = path.split("/");
-        const channelTreeDegree = 2;
-
-        const channelTreePath = splitPath.slice(0, channelTreeDegree).join("/");
-        const channel = this.channels.get(channelTreePath);
-        if (!channel) return undefined;
-
-        const entityTreePath = splitPath.slice(channelTreeDegree).join("/");
-        const entity = channel.entities.get(entityTreePath);
-        return entity as EntityType|undefined;
-    }
+    public readonly ownedEntities = new EntityTree();
 
     /**
      * Verifies whether or not this user is allowed to execute an INPUT or OUTPUT action on a property of a given entity
@@ -58,13 +46,18 @@ export class User extends CustomEventEmitter<UserEvents> {
      * @returns `true` if user successfully joined the channel, `false` otherwise.
      */
     join (channel: Channel): boolean {
-        const success = Channel.canUserJoin(channel, this);
-        if (success) {
-            channel.users.unlock();
-            channel.users.add(this);
-            channel.users.lock();
-        }
-        return success;
+        this.call(channel, "join", [this]);
+        return channel.users.has(this);
+    }
+
+    /**
+     * Attempts to leave a channel
+     * @param channel
+     * @returns `true` if user successfully left the channel, `false` otherwise.
+     */
+    leave (channel: Channel): boolean {
+        this.call(channel, "leave", [this]);
+        return !channel.users.has(this);
     }
 
     /**

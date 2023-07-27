@@ -1,4 +1,4 @@
-import { BuiltinUserGroup, Entity, User, UserGroup, EntityKey, EntityNonGroupKey, EntityGroupKey } from ".";
+import { BuiltinUserGroup, Entity, User, UserGroup, EntityKey, EntityNonGroupKey, EntityGroupKey, EntitySubjectiveGetter, EntitySubjectiveSetter, EntityPropertyKey } from ".";
 import { Group } from "../utils";
 
 function getPropertySchema<EntityType extends Entity>(entity: EntityType, propertyName: string) {
@@ -8,7 +8,8 @@ function getPropertySchema<EntityType extends Entity>(entity: EntityType, proper
     return schema.properties[propertyName] ??= {
         name: propertyName,
         inputGroupName: UserGroup.NONE,
-        outputGroupName: UserGroup.VIEWERS
+        outputGroupName: UserGroup.VIEWERS,
+        isAsynchronous: false
     };
 }
 
@@ -52,6 +53,28 @@ export interface Decorators<EntityType extends Entity = Entity> {
     io: (inputGroup?: EntityGroupKey<EntityType> | null, outputGroup?: EntityGroupKey<EntityType> | null) => (entity: EntityType, propertyName: EntityNonGroupKey<EntityType>) => void;
 
     /**
+     * Manually declares dependencies for this property. Whenever one of the dependencies change, all users who can read this property will receive an update of its value.
+     * @param dependencies
+     * @returns
+     */
+    uses: (...dependencies: EntityPropertyKey<EntityType>[]) => (entity: EntityType, propertyName: EntityPropertyKey<EntityType>) => void;
+
+    /**
+     * Defines a subjective property.
+     * @param subjectiveProperty
+     * @returns
+     */
+    view: <Key extends EntityNonGroupKey<EntityType>>(subjectiveProperty: {
+        get?: EntitySubjectiveGetter<EntityType, EntityType[Key]>,
+        set?: EntitySubjectiveSetter<EntityType, EntityType[Key]>
+    }) => (entity: EntityType, propertyName: Key) => void;
+
+    /**
+     * Makes this property asynchronous
+     */
+    async: (entity: EntityType, propertyName: EntityPropertyKey<EntityType>) => void;
+
+    /**
      * Marks this user group as visible on client-side.
      *
      * This is useful for writing certain conditionals and improving type annotation on the client-side.
@@ -69,14 +92,44 @@ const DECORATORS: Decorators = {
         }
     },
 
+    uses(...dependencies: string[]) {
+        return function (entity: Entity, propertyName: string) {
+            const rules = getPropertySchema(entity, propertyName);
+            if (!rules) return;
+
+            rules.initialDependencies ??= new Group<string>();
+            rules.initialDependencies.addMany(dependencies);
+        }
+    },
+
+    view(subjectiveProperty: {
+        get?: EntitySubjectiveGetter,
+        set?: EntitySubjectiveSetter
+    }) {
+        return function (entity: Entity, propertyName: string) {
+            const rules = getPropertySchema(entity, propertyName);
+            if (!rules) return;
+
+            rules.subjectiveGetter = subjectiveProperty.get;
+            rules.subjectiveSetter = subjectiveProperty.set;
+        }
+    },
+
+    async(entity: Entity, propertyName: string) {
+        const rules = getPropertySchema(entity, propertyName);
+        if (!rules) return;
+
+        rules.isAsynchronous = true;
+    },
+
     io(inputGroupName: string | null = UserGroup.OWNERS, outputGroupName: string | null = UserGroup.INHERIT) {
         return function (entity: Entity, propertyName: string) {
             const rules = getPropertySchema(entity, propertyName);
             if (!rules) return;
 
             const property = Object.getOwnPropertyDescriptor(entity, propertyName);
-            rules.getter = property?.get;
-            rules.setter = property?.set;
+            rules.objectiveGetter = property?.get;
+            rules.objectiveSetter = property?.set;
             rules.inputGroupName = inputGroupName ?? rules.inputGroupName;
             rules.outputGroupName = outputGroupName ?? rules.outputGroupName;
         }

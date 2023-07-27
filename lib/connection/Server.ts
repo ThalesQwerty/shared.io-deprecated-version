@@ -1,5 +1,5 @@
 import { CustomEventEmitter, Group, Tree } from "../utils";
-import { Channel, Entity, User } from "../api";
+import { Channel, Entity, GlobalChannel, User, UserGroup } from "../api";
 import { Client, WebSocketServer } from ".";
 
 export interface ServerEvents {
@@ -15,10 +15,12 @@ export interface ServerEvents {
 
 export interface ServerConfig {
     port: number,
+    globalChannel: typeof GlobalChannel
 }
 
 const DEFAULT_CONFIG: ServerConfig = {
-    port: 3000
+    port: 3000,
+    globalChannel: GlobalChannel
 }
 export class Server extends CustomEventEmitter<ServerEvents> {
     public readonly config: ServerConfig = DEFAULT_CONFIG;
@@ -26,12 +28,16 @@ export class Server extends CustomEventEmitter<ServerEvents> {
     /**
      * All users connected
      */
-    public readonly users = new Group<User>();
+    public readonly users = new UserGroup();
 
     /**
-     * All channels on this server
+     * All entities on this server
      */
-    public readonly channels = new Tree<Channel>();
+    public readonly entities: Tree<Entity>;
+
+    public get globalChannel() {
+        return this.entities.root.value as GlobalChannel;
+    }
 
     private wss?: WebSocketServer;
 
@@ -41,6 +47,8 @@ export class Server extends CustomEventEmitter<ServerEvents> {
         for (const key in config) {
             (this.config as any)[key] = (config as any)[key];
         }
+
+        this.entities = new Tree<Entity>(new this.config.globalChannel(this));
     }
 
     /**
@@ -58,8 +66,9 @@ export class Server extends CustomEventEmitter<ServerEvents> {
             const user = new User(client);
 
             this.users.add(user);
-
             this.emit("connection", { user });
+
+            user.join(this.globalChannel);
 
             client.on("close", () => {
                 this.emit("disconnection", { user });

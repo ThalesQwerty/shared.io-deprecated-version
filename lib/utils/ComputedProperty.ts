@@ -1,7 +1,7 @@
-import { Debouncer, StringKeyOf, WatchedObject, WatchedObjectEvents } from ".";
+import { Debouncer, Group, StringKeyOf, WatchedObject, WatchedObjectEvents } from ".";
 
 export class ComputedProperty<PropertyType = any, ObjectType extends Object = Object> {
-    public readonly dependencies: StringKeyOf<ObjectType>[] = [];
+    public readonly dependencies = new Group<StringKeyOf<ObjectType>>();
     public readonly reference: WatchedObject<ObjectType>;
 
     private _value: PropertyType;
@@ -14,6 +14,12 @@ export class ComputedProperty<PropertyType = any, ObjectType extends Object = Ob
     }
 
     public disabled = false;
+    public disable() {
+        this.disabled = true;
+    }
+    public enable() {
+        this.disabled = false;
+    }
 
     constructor(
         reference: WatchedObject<ObjectType>|ObjectType,
@@ -32,7 +38,7 @@ export class ComputedProperty<PropertyType = any, ObjectType extends Object = Ob
         let hasAnyDepedencyChanged = false;
 
         for (const writeEvent of writeEvents) {
-            if (this.dependencies.includes(writeEvent.key as StringKeyOf<ObjectType>)) {
+            if (this.dependencies.has(writeEvent.key as StringKeyOf<ObjectType>)) {
                 hasAnyDepedencyChanged = true;
                 break;
             }
@@ -47,9 +53,7 @@ export class ComputedProperty<PropertyType = any, ObjectType extends Object = Ob
         const addDependency = ({ key }: WatchedObjectEvents["read"]) => {
             const typedKey = key as StringKeyOf<ObjectType>;
 
-            if (!this.dependencies.includes(typedKey)) {
-                this.dependencies.push(typedKey);
-            }
+            this.dependencies.add(typedKey);
         }
 
         this.reference.watcher.on("read", event => addDependency(event));

@@ -1,12 +1,11 @@
-import { UUID, GroupEvents, Tree } from "../utils";
-import _ from "lodash";
-import { Entity, User } from ".";
+import { UUID, GroupEvents } from "../utils";
+import { Entity, EntityEvents, User } from ".";
 import { Server } from "../connection";
 import { UserGroup } from "./UserGroup";
-import { CustomEventEmitter } from "../utils";
+import _ from "lodash";
+import { EntityTree } from "./EntityTree";
 
-export interface ChannelEvents {
-    delete: {},
+export interface ChannelEvents extends EntityEvents {
     join: {
         user: User,
     },
@@ -15,23 +14,7 @@ export interface ChannelEvents {
     }
 }
 
-export class Channel extends CustomEventEmitter<ChannelEvents> {
-    /**
-     * Verifies whether or not an user can join a given channel
-     */
-    static canUserJoin(channel: Channel, user: User) {
-        return channel.users.count <= channel.maxUsers
-            && !channel.users.has(user)
-            && channel.gate(user);
-    }
-
-    /**
-     * The path in which this channel can be found on the server's channel tree
-     */
-    public get path() {
-        return [this.type, this.id].join("/");
-    }
-
+export class Channel<EventList extends ChannelEvents = ChannelEvents> extends Entity<EventList> {
     /**
      * The name of this channel's class
      */
@@ -51,9 +34,9 @@ export class Channel extends CustomEventEmitter<ChannelEvents> {
     public readonly users = new UserGroup().lock();
 
     /**
-     * The entities which are in this channel
+     * The users who are outside this channel, but can see it and attempt to join it
      */
-    public readonly entities = new Tree<Entity>();
+    public readonly outsiders = UserGroup.difference(this.viewers, this.users);
 
     /**
      * The maximum amount of users allowed on this channel.
@@ -62,21 +45,33 @@ export class Channel extends CustomEventEmitter<ChannelEvents> {
      */
     public maxUsers: number = Infinity;
 
-    constructor(public readonly server: Server) {
-        super();
+    public readonly entities = new EntityTree();
 
-        this.server.channels.set(this.path, this);
+    constructor (
+        /**
+         * The parent channel in which this channel can be found
+         */
+        public readonly channel: Channel,
+
+        /**
+         * The user who created this channel.
+         *
+         * `undefined` if it has been created by the server.
+         */
+        public readonly owner?: User
+    ) {
+        super(channel, owner);
 
         const handleJoin = (event: GroupEvents<User>["add"]) => {
             const user = event.item;
-            user.channels.set(this.path, this);
+            user.joinedChannels.addEntity(this);
 
             this.emit("join", { user });
         };
 
         const handleLeave = (event: GroupEvents<User>["remove"]) => {
             const user = event.item;
-            user.channels.remove(this.path);
+            user.joinedChannels.removeEntity(this);
 
             this.emit("join", { user });
         };
@@ -91,20 +86,54 @@ export class Channel extends CustomEventEmitter<ChannelEvents> {
     }
 
     /**
-     * Deletes this channel
+     * Attempts to add a new user into this channel.
+     * @param user The user to be added.
+     * @returns Whether or not the user successfully joined the channel.
      */
-    delete() {
-        this.server.channels.remove(this.path);
+    join(user: User): boolean {
+        // to-do: add decorators
+        if (this.users.count >= this.maxUsers || this.users.has(user)) return false;
 
-        this.emit("delete", {});
+        this.users.add(user);
+        return true;
     }
 
     /**
-     * Determines whether or not an user is allwoed to join this channel
-     * @param user
-     * @returns
+     * Attempts to remove an user from this channel.
+     * @param user The user to be added.
+     * @returns Whether or not the user successfully joined the channel.
      */
-    gate(user: User): boolean {
-        return true;
+    leave(user: User): boolean {
+        // to-do: add decorators
+        if (!this.users.has(user)) return false;
+
+        this.users.remove(user);
+        return false;
+    }
+}
+
+export class GlobalChannel extends Channel {
+    public get server() {
+        return this._server;
+    }
+
+    public get path() {
+        return "";
+    }
+
+    public readonly users = this._server.users;
+    public readonly outsiders = UserGroup.none;
+    
+    public get viewers() {
+        return this._server.users;
+    } 
+
+    constructor(private readonly _server: Server) {
+        super(null as any);
+        (this as any).channel = this;
+    }
+
+    delete() {
+        return false;
     }
 }

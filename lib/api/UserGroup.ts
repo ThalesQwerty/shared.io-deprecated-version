@@ -4,7 +4,7 @@ import { Debouncer, KeyValue, Group } from "../utils";
 
 export type BuiltinUserGroup =
     | "owner"
-    | "*"
+    | "viewers"
     | "";
 interface ReadParameters {
     entity: Entity,
@@ -19,9 +19,17 @@ interface ListenParameters {
     returnedValue: unknown
 }
 
+type SubjectiveChanges = ViewOutput["data"]["changes"][number];
+type SubjectiveProperty<T = unknown> = (user: User) => T;
+
+type ObjectiveChanges = SubjectiveChanges & {
+    entity: Entity,
+    subjectiveKeys: string[]
+};
+
 export class UserGroup extends Group<User> {
     public static readonly OWNERS: BuiltinUserGroup = "owner";
-    public static readonly VIEWERS: BuiltinUserGroup = "*";
+    public static readonly VIEWERS: BuiltinUserGroup = "viewers";
     public static readonly NONE: BuiltinUserGroup = "";
     public static readonly INHERIT = null;
 
@@ -58,29 +66,53 @@ export class UserGroup extends Group<User> {
     private _read = new Debouncer((changes: ReadParameters[]) => {
         if (this.empty) return;
 
-        const output = changes.reduce((array, { entity, key, value }) => {
+        let hasAnySubjectiveKey = false;
+
+        const objectiveOutputList = changes.reduce((array, { entity, key, value }) => {
             const { path } = entity;
             const currentItem = array.find(item => item.path === path);
+            const isComputed = typeof value === "function";
+
+            if (isComputed) hasAnySubjectiveKey = true;
 
             if (currentItem) {
                 currentItem.diff[key] = value;
+                if (isComputed) currentItem.subjectiveKeys.push(key);
             } else {
                 array.push({
                     path,
+                    entity,
                     diff: {
                         [key]: value
-                    }
+                    },
+                    subjectiveKeys: isComputed ? [key] : []
                 });
             }
 
             return array;
-        }, [] as ViewOutput["data"]["changes"]);
+        }, [] as ObjectiveChanges[]);
 
         this.forEach(user => {
+            const staticOutputList = hasAnySubjectiveKey ? objectiveOutputList.map(item => item.subjectiveKeys.reduce<SubjectiveChanges>(
+                (output, currentKey) => {
+                    const method = output.diff[currentKey] as SubjectiveProperty;
+
+                    const generated = {
+                        ...output,
+                        diff: {
+                            ...output.diff,
+                            [currentKey]: method.call(item.entity, user)
+                        }
+                    };
+
+                    return generated;
+                },
+            item)) : objectiveOutputList;
+
             user.client.send({
                 type: "view",
                 data: {
-                    changes: output
+                    changes: staticOutputList
                 }
             })
         });

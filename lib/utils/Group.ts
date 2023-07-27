@@ -28,7 +28,6 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
 
         if (!this.has(item)) {
             this.items.push(item);
-            (this as any)?.on?.("write", (e: any) => console.log(e));
             this.emit("add", {
                 item,
                 group: this
@@ -36,6 +35,15 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Adds many new items to the group, if not already included
+     * @param items The items to be added
+     * @returns An array mapping `true` for each item not already included, and `false` for otherwise
+     */
+    addMany(items: T[]) {
+        return items.map(item => this.add(item));
     }
 
     /**

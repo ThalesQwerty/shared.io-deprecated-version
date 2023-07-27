@@ -34,15 +34,21 @@ export interface EntityBlankSchema extends EntitySchema {
     userGroups: (BuiltinUserGroup&string)[]
 }
 
-export type EntityPropertyGetter = () => unknown;
-export type EntityPropertySetter = (newValue: unknown) => void;
+export type EntityObjectiveGetter = () => unknown;
+export type EntityObjectiveSetter = (newValue: unknown) => void;
+export type EntitySubjectiveGetter<EntityType extends Entity = Entity, ValueType = unknown> = (this: EntityType, user: User) => ValueType;
+export type EntitySubjectiveSetter<EntityType extends Entity = Entity, ValueType = unknown> = (this: EntityType, newValue: unknown, user: User) => ValueType;
 
 export interface EntityPropertySchema {
     name: string;
     inputGroupName: string;
     outputGroupName: string;
-    getter?: EntityPropertyGetter,
-    setter?: EntityPropertySetter
+    objectiveGetter?: EntityObjectiveGetter,
+    objectiveSetter?: EntityObjectiveSetter,
+    subjectiveGetter?: EntitySubjectiveGetter,
+    subjectiveSetter?: EntitySubjectiveSetter,
+    initialDependencies?: Group<string>,
+    isAsynchronous: boolean
 }
 
 export type EntityPolicy = Partial<{

@@ -1,14 +1,16 @@
 import { Channel, DECORATORS, Decorators, User } from ".";
-import { CustomEventEmitter, StringKeyOf, UUID, WatchedObject, WatchedObjectEvents } from "../utils";
-import _ from "lodash";
-import { Schema, EntityBlankSchema, EntityPolicy } from "./Schema";
+import { CustomEventEmitter, StringKeyOf, UUID, WatchedObject } from "../utils";
+import { Schema, EntityBlankSchema, EntityPolicy, EntityPropertyKey } from "./Schema";
 import { UserGroup } from "./UserGroup";
+import { Server } from "../connection";
+import { EventEmitter } from "node:events";
+import _ from "lodash";
 
 function blankSchema(type: string): EntityBlankSchema {
     return {
         type: type,
         properties: {},
-        userGroups: ["owner", "*", ""]
+        userGroups: ["owner", "viewers", ""]
     };
 }
 
@@ -20,25 +22,8 @@ export interface EntityEvents {
         group: UserGroup
     }
 }
-
-export type OutputHandler<T = unknown> = (info: {oldValue: T, newValue: T, user: User, entity: Entity, key: string }) => T;
-
-export class Entity<ChannelType extends Channel = Channel> extends CustomEventEmitter<EntityEvents> {
-    /**
-     * The path in which this entity can be found by the users' clients
-     */
-    public get path() {
-        return [this.channel.path, this.type, this.id].join("/");
-    }
-
-    /**
-     * The path in which this entity can be found on its channel's entity tree
-     */
-    private get localPath() {
-        return [this.type, this.id].join("/");
-    }
-
-    public get server() {
+export class Entity<EventList extends EntityEvents = EntityEvents> extends CustomEventEmitter<EventList> {
+    public get server(): Server {
         return this.channel.server;
     }
 
@@ -49,9 +34,23 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
         return this.constructor.name;
     }
 
+    /**
+     * The path in which this entity can be found by the users' clients
+     */
+    public get path(): string {
+        return [this.channel.path, this.type, this.id].join("/");
+    }
+
     public get schema() {
         const { type } = this;
         return Schema.entities[type] ??= blankSchema(type);
+    }
+
+    /**
+     * The users who can view and interact with this entity.
+     */
+    public get viewers() {
+        return this.channel.users;
     }
 
     /**
@@ -82,14 +81,12 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
      * Random unique and universal identifier string for this entity.
      */
     public readonly id = UUID();
-    
-    private readonly "*" = this.channel.users;
 
-    constructor (
+    constructor(
         /**
          * The channel in which this entity can be found
          */
-        public readonly channel: ChannelType,
+        public readonly channel: Channel,
 
         /**
          * The user who created this entity.
@@ -100,24 +97,16 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
     ) {
         super();
         const { proxy, watcher } = new WatchedObject(this, ["channel", "owner", "schema", "policy", "type", "path"]);
+        const schema = this.schema;
 
-        channel.entities.set(this.localPath, this);
+        this.owner?.ownedEntities.addEntity(this);
+        this.server.entities.set(this.path, this);
 
         watcher.on("write", ({ key, newValue, oldValue }) => {
-            const group = this.policy[key]?.output;
-            if (!group || newValue === oldValue) return;
-
-            group.read({
-                entity: this,
-                key,
-                value: newValue
-            });
-
-            this.emit("output", {
-                key,
-                value: newValue,
-                group
-            });
+            const { isAsynchronous } = this.schema.properties[key];
+            if (!isAsynchronous && newValue !== oldValue) {
+                this.sync(key as EntityPropertyKey<this>, newValue as any);
+            }
         });
 
         watcher.on("call", ({ key, parameters, returnedValue }) => {
@@ -132,22 +121,31 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
             });
         });
 
-        const propertySchema = this.schema.properties;
-
-        for (const key in propertySchema) {
+        for (const key in schema.properties) {
             const {
                 inputGroupName,
                 outputGroupName,
-                getter
-            } = propertySchema[key];
+                objectiveGetter,
+                subjectiveGetter,
+                initialDependencies
+            } = schema.properties[key];
 
             this.policy[key] = {
                 input: UserGroup.force((this as any)[inputGroupName]),
                 output: UserGroup.force((this as any)[outputGroupName])
             };
 
-            if (getter) {
-                const computedProperty = watcher.infer(key as StringKeyOf<this>, getter.bind(proxy));
+            if (objectiveGetter) {
+                const computedProperty = watcher.infer(key as StringKeyOf<this>, objectiveGetter.bind(proxy));
+                if (initialDependencies) computedProperty.dependencies.addMany(initialDependencies?.array as any[]);
+
+                this.on("delete", () => {
+                    computedProperty.disabled = true;
+                });
+            }
+
+            if (subjectiveGetter) {
+                const computedProperty = watcher.infer(key as StringKeyOf<this>, () => subjectiveGetter);
 
                 this.on("delete", () => {
                     computedProperty.disabled = true;
@@ -166,7 +164,26 @@ export class Entity<ChannelType extends Channel = Channel> extends CustomEventEm
      * Deletes this entity
      */
     delete() {
-        this.channel.entities.remove(this.localPath);
+        this.server.entities.remove(this.path);
         this.emit("delete", {});
+    }
+
+    sync<Key extends EntityPropertyKey<this>>(key: Key, value?: this[Key]) {
+        const group = this.policy[key]?.output;
+        if (!group) return;
+
+        const definedValue = value === undefined ? this[key] : value;
+
+        group.read({
+            entity: this,
+            key,
+            value: this.schema.properties[key]?.subjectiveGetter ?? definedValue
+        });
+
+        this.emit("output", {
+            key,
+            value: definedValue,
+            group
+        });
     }
 }
