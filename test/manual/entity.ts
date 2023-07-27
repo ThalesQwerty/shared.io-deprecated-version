@@ -1,13 +1,26 @@
 import { Channel, Entity, User, UserGroup } from "../../lib/api";
-import { Server } from "../../lib/connection";
+import { Client, Server } from "../../lib/connection";
 
 const server = new Server().start();
 
-const { input, output, shared, hidden } = Entity.decorators<TestEntity>();
+const { input, output, action, event, shared, hidden, view } = Entity.decorators<TestEntity>();
 class TestEntity extends Entity {
-    @output a = 1;
+    @input @output a = 1;
+
+    @view({
+        get() {
+            return "Hello, world!"
+        }
+    })
+    b = "oxe";
+    c = false;
 
     @shared
+    test() {}
+
+    group = new UserGroup();
+
+    @action @event
     delete(user?: User) {
         super.delete();
     }
@@ -17,9 +30,8 @@ class TestChannel extends Channel {
     maxUsers = 5;
 }
 
-const channel = new Channel(server);
-const entity = new TestEntity(channel);
+const user = new User(new Client(server));
+const channel = new TestChannel(server);
+const entity = new TestEntity(channel, user);
 
-server.on("connection", ({ user }) => {
-
-});
+console.log(entity.path, entity.schema);

@@ -1,11 +1,11 @@
 import { User, Entity } from ".";
-import { Client, ViewOutput } from "../connection";
-import { Debouncer, KeyValue, Group } from "../utils";
+import { ViewOutput } from "../connection";
+import { Debouncer,Group } from "../utils";
 
 export type BuiltinUserGroup =
     | "owner"
     | "viewers"
-    | "";
+    | "nobody";
 interface ReadParameters {
     entity: Entity,
     key: string,
@@ -30,7 +30,7 @@ type ObjectiveChanges = SubjectiveChanges & {
 export class UserGroup extends Group<User> {
     public static readonly OWNERS: BuiltinUserGroup = "owner";
     public static readonly VIEWERS: BuiltinUserGroup = "viewers";
-    public static readonly NONE: BuiltinUserGroup = "";
+    public static readonly NONE: BuiltinUserGroup = "nobody";
     public static readonly INHERIT = null;
 
     /**
@@ -69,7 +69,7 @@ export class UserGroup extends Group<User> {
         let hasAnySubjectiveKey = false;
 
         const objectiveOutputList = changes.reduce((array, { entity, key, value }) => {
-            const { path } = entity;
+            const path = entity.path.join("/");
             const currentItem = array.find(item => item.path === path);
             const isComputed = typeof value === "function";
 
@@ -121,7 +121,7 @@ export class UserGroup extends Group<User> {
     public listen ({ entity, parameters, methodName, returnedValue }: ListenParameters) {
         if (this.empty) return;
 
-        const { path } = entity;
+        const path = entity.path.join("/");
 
         this.forEach(user => {
             user.client.send({

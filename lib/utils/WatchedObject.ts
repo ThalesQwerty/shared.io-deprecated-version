@@ -1,5 +1,4 @@
-import EventEmitter from "node:events";
-import { ComputedProperty, CustomEventEmitter, Debouncer, KeyValue, StringKeyOf } from ".";
+import { ComputedProperty, CustomEventEmitter, KeyValue, StringKeyOf } from ".";
 import _  from "lodash";
 
 export interface WatchedObjectEvents {

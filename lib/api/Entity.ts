@@ -1,16 +1,14 @@
-import { Channel, DECORATORS, Decorators, User } from ".";
+import { Channel, DECORATORS, Decorators, User, UserGroup, BuiltinUserGroup, Schema, EntityBlankSchema, EntityPolicy, EntityPropertyKey } from ".";
 import { CustomEventEmitter, StringKeyOf, UUID, WatchedObject } from "../utils";
-import { Schema, EntityBlankSchema, EntityPolicy, EntityPropertyKey } from "./Schema";
-import { UserGroup } from "./UserGroup";
 import { Server } from "../connection";
-import { EventEmitter } from "node:events";
 import _ from "lodash";
 
 function blankSchema(type: string): EntityBlankSchema {
     return {
         type: type,
         properties: {},
-        userGroups: ["owner", "viewers", ""]
+        methods: {},
+        userGroups: ["owner", "viewers", "nobody"]
     };
 }
 
@@ -22,9 +20,20 @@ export interface EntityEvents {
         group: UserGroup
     }
 }
-export class Entity<EventList extends EntityEvents = EntityEvents> extends CustomEventEmitter<EventList> {
+export class Entity<EventList extends EntityEvents = EntityEvents> extends CustomEventEmitter<EventList> implements Partial<Record<BuiltinUserGroup, User|UserGroup>> {
+    /**
+     * The server in which this entity can be found
+     */
     public get server(): Server {
-        return this.channel.server;
+        return this.channel instanceof Server ? this.channel : this.channel.server;
+    }
+
+    /**
+     * The path in which this entity can be found in this entity
+     */
+    public get path(): string[][] {
+        const localPath = [this.type, this.id];
+        return this.channel instanceof Channel ? [...this.channel.path, localPath] : [localPath];
     }
 
     /**
@@ -32,13 +41,6 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
      */
     public get type() {
         return this.constructor.name;
-    }
-
-    /**
-     * The path in which this entity can be found by the users' clients
-     */
-    public get path(): string {
-        return [this.channel.path, this.type, this.id].join("/");
     }
 
     public get schema() {
@@ -52,6 +54,11 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
     public get viewers() {
         return this.channel.users;
     }
+
+    /**
+     * Builtin empty user group. Cannot be altered.
+     */
+    public readonly nobody = UserGroup.none;
 
     /**
      * Access rules for this entity's keys
@@ -71,7 +78,7 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
     /**
      * Get the decorators with correct type annotation for a given entity type
      * @param EntityType (type paremeter) The entity class
-     * @returns The decorators: `@group`, `@inputFor`, `@outputFor`, `@input`, `@output`, `@hidden` and `@shared`
+     * @returns The decorators: `@group`, `@inputGroupName`, `@outputFor`, `@input`, `@output`, `@hidden` and `@shared`
      */
     public static decorators<EntityType extends Entity = Entity>() {
         return DECORATORS as unknown as Decorators<EntityType>;
@@ -86,7 +93,7 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
         /**
          * The channel in which this entity can be found
          */
-        public readonly channel: Channel,
+        public readonly channel: Channel|Server,
 
         /**
          * The user who created this entity.
@@ -96,15 +103,16 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
         public readonly owner?: User
     ) {
         super();
+
         const { proxy, watcher } = new WatchedObject(this, ["channel", "owner", "schema", "policy", "type", "path"]);
         const schema = this.schema;
 
         this.owner?.ownedEntities.addEntity(this);
-        this.server.entities.set(this.path, this);
+        this.channel.entities.addEntity(this);
 
         watcher.on("write", ({ key, newValue, oldValue }) => {
-            const { isAsynchronous } = this.schema.properties[key];
-            if (!isAsynchronous && newValue !== oldValue) {
+            const propertySchema = this.schema.properties[key];
+            if (!propertySchema?.isAsynchronous && newValue !== oldValue) {
                 this.sync(key as EntityPropertyKey<this>, newValue as any);
             }
         });
@@ -163,8 +171,8 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
     /**
      * Deletes this entity
      */
-    delete() {
-        this.server.entities.remove(this.path);
+    delete(): void {
+        this.owner?.ownedEntities.removeEntity(this);
         this.emit("delete", {});
     }
 

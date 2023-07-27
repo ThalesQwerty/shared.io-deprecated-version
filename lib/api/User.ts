@@ -1,7 +1,6 @@
-import { Channel, Entity, EntityKey, EntityMethodKey, UserGroup } from ".";
+import { Channel, Entity, EntityKey, EntityMethodKey, UserGroup, EntityTree } from ".";
 import { Client } from "../connection";
 import { CustomEventEmitter } from "../utils";
-import { EntityTree } from "./EntityTree";
 
 export interface UserEvents {
 

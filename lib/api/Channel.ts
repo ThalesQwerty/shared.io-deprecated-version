@@ -1,9 +1,8 @@
 import { UUID, GroupEvents } from "../utils";
-import { Entity, EntityEvents, User } from ".";
+import { Entity, EntityEvents } from "./Entity";
+import { User, UserGroup, EntityTree } from ".";
 import { Server } from "../connection";
-import { UserGroup } from "./UserGroup";
 import _ from "lodash";
-import { EntityTree } from "./EntityTree";
 
 export interface ChannelEvents extends EntityEvents {
     join: {
@@ -48,10 +47,7 @@ export class Channel<EventList extends ChannelEvents = ChannelEvents> extends En
     public readonly entities = new EntityTree();
 
     constructor (
-        /**
-         * The parent channel in which this channel can be found
-         */
-        public readonly channel: Channel,
+        channel: Channel|Server,
 
         /**
          * The user who created this channel.
@@ -108,32 +104,6 @@ export class Channel<EventList extends ChannelEvents = ChannelEvents> extends En
         if (!this.users.has(user)) return false;
 
         this.users.remove(user);
-        return false;
-    }
-}
-
-export class GlobalChannel extends Channel {
-    public get server() {
-        return this._server;
-    }
-
-    public get path() {
-        return "";
-    }
-
-    public readonly users = this._server.users;
-    public readonly outsiders = UserGroup.none;
-    
-    public get viewers() {
-        return this._server.users;
-    } 
-
-    constructor(private readonly _server: Server) {
-        super(null as any);
-        (this as any).channel = this;
-    }
-
-    delete() {
         return false;
     }
 }

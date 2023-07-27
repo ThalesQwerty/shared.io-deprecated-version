@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { KeyValue } from "./KeyValue";
+import { KeyValue } from ".";
 
 export class CustomEventEmitter<EventList extends KeyValue = {}> extends EventEmitter implements ICustomEventEmitter<EventList> {};
 

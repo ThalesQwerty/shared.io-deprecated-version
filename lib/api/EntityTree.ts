@@ -1,6 +1,5 @@
-import { Channel } from ".";
+import { Channel, Entity } from ".";
 import { Constructor, InstanceTree } from "../utils";
-import { Entity } from "./Entity";
 
 export class EntityTree<EntityType extends Entity = Entity> extends InstanceTree<EntityType> {
     findRecursive(...steps: [constructor: string|Constructor<EntityType>, id: string][]) {
