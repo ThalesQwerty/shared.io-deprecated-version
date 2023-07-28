@@ -1,9 +1,10 @@
-import { Entity, UserGroup, EntityKey, EntityNonGroupKey, EntityGroupKey, EntitySubjectiveGetter, EntitySubjectiveSetter, EntityPropertyKey, EntityPropertySchema, EntityMethodSchema, EntityMethodKey } from ".";
+import { Entity, EntityKey, EntityNonGroupKey, EntityGroupKey, EntitySubjectiveGetter, EntitySubjectiveSetter, EntityPropertyKey, EntityPropertySchema, EntityMethodSchema, EntityMethodKey } from ".";
+import { UserGroup } from "./UserGroup";
+import { Schema } from "./Schema";
 import { Group } from "../utils";
 
 function getPropertySchema<EntityType extends Entity>(entity: EntityType, propertyName: string) {
-    const { schema } = entity;
-    if (!schema) return;
+    const schema = Schema.findOrCreateByName(entity.constructor.name);
 
     return schema.properties[propertyName] ??= {
         key: propertyName,
@@ -16,8 +17,7 @@ function getPropertySchema<EntityType extends Entity>(entity: EntityType, proper
 }
 
 function getMethodSchema<EntityType extends Entity>(entity: EntityType, methodName: string) {
-    const { schema } = entity;
-    if (!schema) return;
+    const schema = Schema.findOrCreateByName(entity.constructor.name);
 
     return schema.methods[methodName] ??= {
         key: methodName,
@@ -83,12 +83,12 @@ export interface Decorators<EntityType extends Entity = Entity> {
     /**
      * Defines a shared property for this entity.
      */
-    property: (config?: Partial<EntityPropertySchema>) => (entity: EntityType, propertyName: EntityNonGroupKey<EntityType>) => void;
+    property: (config?: Partial<EntityPropertySchema<EntityType>>) => (entity: EntityType, propertyName: EntityPropertyKey<EntityType>) => void;
 
     /**
      * Defines a shared method for this entity.
      */
-    method: (config?: Partial<EntityMethodSchema>) => (entity: EntityType, propertyName: EntityNonGroupKey<EntityType>) => void;
+    method: (config?: Partial<EntityMethodSchema<EntityType>>) => (entity: EntityType, propertyName: EntityMethodKey<EntityType>) => void;
 
     /**
      * Manually declares dependencies for this property. Whenever one of the dependencies change, all users who can read this property will receive an update of its value.
@@ -163,14 +163,17 @@ const DECORATORS: Decorators<any> = {
             if (!rules) return;
 
             const property = Object.getOwnPropertyDescriptor(entity, propertyName);
-            if (!property) return;
+
+            rules.name = propertyName;
 
             for (const key in config) {
                 (rules as any)[key] = (config as any)[key] ?? (rules as any)[key];
             }
 
-            rules.objectiveGetter = property?.get ?? rules.objectiveGetter;
-            rules.objectiveSetter = property?.set ?? rules.objectiveSetter;
+            if (property) {
+                rules.objectiveGetter = property?.get ?? rules.objectiveGetter;
+                rules.objectiveSetter = property?.set ?? rules.objectiveSetter;
+            }
         }
     },
 
@@ -178,6 +181,8 @@ const DECORATORS: Decorators<any> = {
         return function (entity: Entity, propertyName: string) {
             const rules = getMethodSchema(entity, config.key ?? propertyName);
             if (!rules) return;
+
+            rules.name = propertyName;
 
             for (const key in config) {
                 (rules as any)[key] = (config as any)[key] ?? (rules as any)[key];

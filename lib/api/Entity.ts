@@ -1,17 +1,9 @@
-import { Channel, DECORATORS, Decorators, User, UserGroup, BuiltinUserGroup, Schema, EntityBlankSchema, EntityPolicy, EntityPropertyKey } from ".";
+import { Channel, User, UserGroup, BuiltinUserGroup, EntityPolicy, EntityPropertyKey } from ".";
 import { CustomEventEmitter, StringKeyOf, UUID, WatchedObject } from "../utils";
 import { Server } from "../connection";
+import { DECORATORS, Decorators } from "./Decorators";
+import { Schema } from "./Schema";
 import _ from "lodash";
-
-function blankSchema(type: string): EntityBlankSchema {
-    return {
-        type: type,
-        properties: {},
-        methods: {},
-        userGroups: ["owner", "viewers", "nobody"]
-    };
-}
-
 export interface EntityEvents {
     delete: {},
     output: {
@@ -20,7 +12,9 @@ export interface EntityEvents {
         group: UserGroup
     }
 }
-export class Entity<EventList extends EntityEvents = EntityEvents> extends CustomEventEmitter<EventList> implements Partial<Record<BuiltinUserGroup, User|UserGroup>> {
+
+const { output, event, property, method } = DECORATORS as Decorators<Entity>;
+export class Entity<EventList extends EntityEvents = EntityEvents> extends CustomEventEmitter<EventList> implements Partial<Record<BuiltinUserGroup, User | UserGroup>> {
     /**
      * The server in which this entity can be found
      */
@@ -39,13 +33,13 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
     /**
      * The name of this entity's class
      */
+    @output
     public get type() {
         return this.constructor.name;
     }
 
     public get schema() {
-        const { type } = this;
-        return Schema.entities[type] ??= blankSchema(type);
+        return Schema.findOrCreate(Object.getPrototypeOf(this));
     }
 
     /**
@@ -63,16 +57,10 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
     /**
      * Access rules for this entity's keys
      */
-    public readonly policy: EntityPolicy = {
-        delete: {
-            input: UserGroup.none,
-            output: UserGroup.none
-        }
-    };
+    public readonly policy: EntityPolicy = {};
 
     public static get schema() {
-        const type = this.prototype.constructor.name;
-        return Schema.entities[type] ??= blankSchema(type);
+        return Schema.findOrCreate(this);
     }
 
     /**
@@ -87,22 +75,39 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
     /**
      * Random unique and universal identifier string for this entity.
      */
+    @output
     public readonly id = UUID();
 
-    constructor(
-        /**
-         * The channel in which this entity can be found
-         */
-        public readonly channel: Channel|Server,
+    /**
+     * The channel in which this entity can be found
+     */
+    @property({
+        outputGroupName: "viewers",
+        subjectiveGetter() {
+            return (this.channel instanceof Server ? [] : this.channel.path).flat().join("/");
+        },
+        type: "string"
+    })
+    public readonly channel: Channel | Server;
 
-        /**
-         * The user who created this entity.
-         *
-         * `undefined` if it has been created by the server.
-         */
-        public readonly owner?: User
-    ) {
+    /**
+     * The user who created this entity.
+     *
+     * `undefined` if it has been created by the server.
+     */
+    @property({
+        outputGroupName: "viewers",
+        subjectiveGetter(user) {
+            return user === this.owner;
+        },
+        type: "boolean"
+    })
+    public readonly owner?: User;
+
+    constructor(channel: Channel | Server, owner?: User) {
         super();
+        this.channel = channel;
+        this.owner = owner;
 
         const { proxy, watcher } = new WatchedObject(this, ["channel", "owner", "schema", "policy", "type", "path"]);
         const schema = this.schema;
@@ -111,8 +116,7 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
         this.channel.entities.addEntity(this);
 
         watcher.on("write", ({ key, newValue, oldValue }) => {
-            const propertySchema = this.schema.properties[key];
-            if (!propertySchema?.isAsynchronous && newValue !== oldValue) {
+            if (newValue !== oldValue && !this.schema.getProperty(key)?.isAsynchronous) {
                 this.sync(key as EntityPropertyKey<this>, newValue as any);
             }
         });
@@ -171,6 +175,11 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
     /**
      * Deletes this entity
      */
+    @method({
+        eventGroupName: "viewers",
+        parameters: [],
+        returnType: "void"
+    })
     delete(): void {
         this.owner?.ownedEntities.removeEntity(this);
         this.emit("delete", {});
@@ -185,7 +194,7 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
         group.read({
             entity: this,
             key,
-            value: this.schema.properties[key]?.subjectiveGetter ?? definedValue
+            value: this.schema.getProperty(key)?.subjectiveGetter ?? definedValue
         });
 
         this.emit("output", {

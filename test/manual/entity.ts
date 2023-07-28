@@ -1,7 +1,7 @@
 import { Channel, Entity, User, UserGroup } from "../../lib/api";
 import { Client, Server } from "../../lib/connection";
 
-const server = new Server().start();
+const server = new Server();
 
 const { input, output, action, event, shared, hidden, view } = Entity.decorators<TestEntity>();
 class TestEntity extends Entity {
@@ -34,4 +34,6 @@ const user = new User(new Client(server));
 const channel = new TestChannel(server);
 const entity = new TestEntity(channel, user);
 
-console.log(entity.path, entity.schema);
+console.dir(channel.schema, { depth: null });
+console.dir(entity.schema, { depth: null });
+console.log(channel.schema.getProperty("joined"));

@@ -2,6 +2,7 @@ import { UUID, GroupEvents } from "../utils";
 import { Entity, EntityEvents } from "./Entity";
 import { User, UserGroup, EntityTree } from ".";
 import { Server } from "../connection";
+import { DECORATORS, Decorators } from "./Decorators";
 import _ from "lodash";
 
 export interface ChannelEvents extends EntityEvents {
@@ -12,6 +13,8 @@ export interface ChannelEvents extends EntityEvents {
         user: User
     }
 }
+
+const { eventFor, actionFor, property } = DECORATORS as Decorators<Channel>;
 
 export class Channel<EventList extends ChannelEvents = ChannelEvents> extends Entity<EventList> {
     /**
@@ -26,10 +29,16 @@ export class Channel<EventList extends ChannelEvents = ChannelEvents> extends En
      */
     public readonly id = UUID();
 
-
     /**
      * The users who are in this channel
      */
+    @property({
+        key: "joined",
+        subjectiveGetter(user) {
+            return this.users.has(user);
+        },
+        type: "boolean"
+    })
     public readonly users = new UserGroup().lock();
 
     /**
@@ -86,6 +95,7 @@ export class Channel<EventList extends ChannelEvents = ChannelEvents> extends En
      * @param user The user to be added.
      * @returns Whether or not the user successfully joined the channel.
      */
+    @eventFor("users") @actionFor("outsiders")
     join(user: User): boolean {
         // to-do: add decorators
         if (this.users.count >= this.maxUsers || this.users.has(user)) return false;
@@ -99,6 +109,7 @@ export class Channel<EventList extends ChannelEvents = ChannelEvents> extends En
      * @param user The user to be added.
      * @returns Whether or not the user successfully joined the channel.
      */
+    @eventFor("users") @actionFor("users")
     leave(user: User): boolean {
         // to-do: add decorators
         if (!this.users.has(user)) return false;

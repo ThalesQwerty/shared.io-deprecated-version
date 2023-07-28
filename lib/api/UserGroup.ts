@@ -60,7 +60,7 @@ export class UserGroup extends Group<User> {
      * Reads a property from an entity
      */
     public get read() {
-        return this._read.call.bind(this._read);
+        return this._read.call.bind(this);
     }
 
     private _read = new Debouncer((changes: ReadParameters[]) => {
@@ -91,6 +91,8 @@ export class UserGroup extends Group<User> {
 
             return array;
         }, [] as ObjectiveChanges[]);
+
+        hasAnySubjectiveKey = false; // to-do: remove this later
 
         this.forEach(user => {
             const staticOutputList = hasAnySubjectiveKey ? objectiveOutputList.map(item => item.subjectiveKeys.reduce<SubjectiveChanges>(
