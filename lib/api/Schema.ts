@@ -1,5 +1,6 @@
 import { Group, KeyValue, StringKeyOf } from "../utils";
-import { Entity, User, BuiltinUserGroup, UserGroup } from ".";
+import { Entity, User } from ".";
+import { UserGroup, BuiltinUserGroup } from "./UserGroup";
 
 export type EntityKey<EntityType extends Entity> = StringKeyOf<EntityType>;
 
@@ -11,11 +12,11 @@ export type EntityNonGroupKey<EntityType extends Entity = Entity> = {
     [key in EntityKey<EntityType>]: EntityType[key] extends User|Group<User>|undefined  ? never : key
 }[EntityKey<EntityType>];
 
-export type EntityMethodKey<EntityType extends Entity = Entity> = EntityKey<EntityType> & (BuiltinUserGroup | {
+export type EntityMethodKey<EntityType extends Entity = Entity> = EntityNonGroupKey<EntityType> & (BuiltinUserGroup | {
     [key in EntityKey<EntityType>]: EntityType[key] extends Function ? key : never
 }[EntityKey<EntityType>]);
 
-export type EntityPropertyKey<EntityType extends Entity = Entity> = EntityKey<EntityType> & (BuiltinUserGroup | {
+export type EntityPropertyKey<EntityType extends Entity = Entity> = EntityNonGroupKey<EntityType> & (BuiltinUserGroup | {
     [key in EntityKey<EntityType>]: EntityType[key] extends Function ? never : key
 }[EntityKey<EntityType>]);
 
@@ -33,21 +34,11 @@ export interface CompoundTypeName {
     [key: string]: (SimpleTypeName|CompoundTypeName)|(SimpleTypeName|CompoundTypeName)[]
 }
 export type TypeName = SimpleTypeName|CompoundTypeName;
-
-export interface EntitySchema<EntityType extends Entity = any> {
-    type: string;
-    properties: KeyValue<EntityPropertySchema<EntityType>>;
-    methods: KeyValue<EntityMethodSchema>;
-    userGroups: EntityGroupKey<EntityType>[];
-    extends?: EntitySchema;
-    getProperty: (key: string) => EntityPropertySchema|undefined;
-    getMethod: (key: string) => EntityMethodSchema|undefined;
-    complete: boolean;
-}
+export type ReturnTypeName = TypeName|"void";
 
 export interface EntityPropertySchema<EntityType extends Entity = any> {
-    key: string;
     name: string;
+    alias: string;
     type: TypeName;
     inputGroupName: string;
     outputGroupName: string;
@@ -60,10 +51,10 @@ export interface EntityPropertySchema<EntityType extends Entity = any> {
 }
 
 export interface EntityMethodSchema<EntityType extends Entity = any> {
-    key: string;
     name: string;
+    alias: string;
     parameters: EntityMethodParameterSchema[];
-    returnType: "void"|TypeName;
+    returnType: ReturnTypeName;
     actionGroupName: string;
     eventGroupName: string;
 }
@@ -73,11 +64,7 @@ export interface EntityMethodParameterSchema {
     type: TypeName;
     required: boolean;
 }
-export interface EntityBlankSchema extends EntitySchema {
-    type: string;
-    properties: KeyValue<EntityPropertySchema>;
-    userGroups: (BuiltinUserGroup&string)[]
-}
+
 
 export type EntityObjectiveGetter = () => unknown;
 export type EntityObjectiveSetter = (newValue: unknown) => void;
@@ -98,43 +85,87 @@ export type EntityPolicy = Partial<{
     }
 }>;
 
+
+export class EntitySchema<EntityType extends Entity = any> {
+    properties: KeyValue<EntityPropertySchema<EntityType>> = {};
+    methods: KeyValue<EntityMethodSchema> = {};
+    aliasMap: KeyValue<EntityKey<EntityType>> = {};
+    visibleUserGroups: Group<string> = new Group();
+    prototype?: typeof Entity;
+    extends?: EntitySchema;
+
+    getProperty(key: string): EntityPropertySchema|undefined {
+        const alias = this.aliasMap[key] ?? key;
+        return this.properties[alias] ?? this.extends?.getProperty(key);
+    }
+
+    getMethod(key: string): EntityMethodSchema|undefined {
+        const alias = this.aliasMap[key] ?? key;
+        return this.methods[alias] ?? this.extends?.getMethod(key);
+    }
+
+    createProperty(propertyName: string) {
+        return this.properties[propertyName] ??= {
+            alias: propertyName,
+            name: propertyName,
+            type: "unknown",
+            inputGroupName: UserGroup.NONE,
+            outputGroupName: UserGroup.OWNERS,
+            isAsynchronous: false
+        };
+    }
+
+    createMethod(methodName: string) {
+        return this.methods[methodName] ??= {
+            alias: methodName,
+            name: methodName,
+            returnType: "unknown",
+            parameters: [],
+            actionGroupName: UserGroup.NONE,
+            eventGroupName: UserGroup.NONE
+        };
+    }
+
+    listAliases(): string[] {
+        const keys = [...Object.keys(this.properties), ...Object.keys(this.methods)];
+        const group = new Group(...keys);
+
+        for (const alias in this.aliasMap) {
+            const name = this.aliasMap[alias];
+            group.add(alias);
+            group.remove(name);
+        }
+
+        if (this.extends) group.addMany(this.extends.listAliases());
+        return group.asArray;
+    }
+
+    listVisibleGroupNames(): string[] {
+        const group = this.visibleUserGroups.clone();
+        if (this.extends) group.addMany(this.extends.listVisibleGroupNames());
+        return group.asArray;
+    }
+
+    constructor(public readonly type: string) {}
+}
+
 export class Schema {
     public static readonly entities: KeyValue<EntitySchema> = {};
 
-    public static generate(name: string): EntityBlankSchema {
-         const schema: EntityBlankSchema = {
-            complete: false,
-            type: name,
-            properties: {},
-            methods: {},
-            userGroups: ["owner", "viewers", "nobody"],
-
-            getProperty(key) {
-                return schema.properties[key] ?? schema.extends?.getProperty(key);
-            },
-
-            getMethod(key) {
-                return schema.methods[key] ?? schema.extends?.getMethod(key);
-            },
-        };
-
-        return schema;
-    }
-
     public static findOrCreate(entity: typeof Entity): EntitySchema {
         const typeName = entity.constructor.name;
-        const schema = this.entities[typeName] ??= this.generate(typeName);
+        const schema = this.entities[typeName] ??= new EntitySchema(typeName);
 
-        if (!schema.complete) {
+        if (!schema.prototype) {
             const entityPrototype = Object.getPrototypeOf(entity);
+            schema.prototype = entity;
             schema.extends = entity.constructor === Entity || !entityPrototype ? undefined : Schema.findOrCreate(entityPrototype);
-            schema.complete = true;
         }
 
         return schema;
     }
 
     public static findOrCreateByName(typeName: string) {
-        return this.entities[typeName] ??= this.generate(typeName);
+        return this.entities[typeName] ??= new EntitySchema(typeName);
     }
 }

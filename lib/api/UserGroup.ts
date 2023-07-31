@@ -50,7 +50,7 @@ export class UserGroup extends Group<User> {
      */
     static force(value: unknown) {
         return value instanceof UserGroup ? value
-            : value instanceof Group ? new UserGroup(...value.array)
+            : value instanceof Group ? new UserGroup(...value.asArray)
             : value instanceof Array ? new UserGroup(...value)
             : value instanceof User ? value.asGroup
             : UserGroup.none;

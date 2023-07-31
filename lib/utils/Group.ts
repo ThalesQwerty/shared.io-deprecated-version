@@ -42,8 +42,9 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
      * @param items The items to be added
      * @returns An array mapping `true` for each item not already included, and `false` for otherwise
      */
-    addMany(items: T[]) {
-        return items.map(item => this.add(item));
+    addMany(items: T[]|Group<T>) {
+        const itemArray = items instanceof Group ? items.asArray : items;
+        return itemArray.map(item => this.add(item));
     }
 
     /**
@@ -74,7 +75,7 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
         if (this.locked)throw new Error("Cannot directly remove items from locked group.");
         if (!this.count) return false;
 
-        this.array.forEach(item => this.remove(item));
+        this.asArray.forEach(item => this.remove(item));
         return true;
     }
 
@@ -82,7 +83,7 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
      * Generates a new copy of this group
      */
     clone() {
-        return new Group(...this.array);
+        return new Group(...this.asArray);
     }
 
     /**
@@ -140,12 +141,12 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
     /**
      * Generates an array containing the items of this group
      */
-    get array() {
+    get asArray() {
         return [...this.items];
     }
 
     [Symbol.iterator]() {
-        return this.array;
+        return this.asArray;
     }
 
     /**

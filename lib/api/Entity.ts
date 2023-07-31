@@ -13,7 +13,7 @@ export interface EntityEvents {
     }
 }
 
-const { output, event, property, method } = DECORATORS as Decorators<Entity>;
+const { output, group, property, method } = DECORATORS as Decorators<Entity>;
 export class Entity<EventList extends EntityEvents = EntityEvents> extends CustomEventEmitter<EventList> implements Partial<Record<BuiltinUserGroup, User | UserGroup>> {
     /**
      * The server in which this entity can be found
@@ -82,11 +82,11 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
      * The channel in which this entity can be found
      */
     @property({
-        outputGroupName: "viewers",
-        subjectiveGetter() {
-            return (this.channel instanceof Server ? [] : this.channel.path).flat().join("/");
+        outputFor: "viewers",
+        type: "string",
+        get() {
+            return (this.channel instanceof Server ? [] : this.channel.path).flat().join("/") as any;
         },
-        type: "string"
     })
     public readonly channel: Channel | Server;
 
@@ -95,13 +95,7 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
      *
      * `undefined` if it has been created by the server.
      */
-    @property({
-        outputGroupName: "viewers",
-        subjectiveGetter(user) {
-            return user === this.owner;
-        },
-        type: "boolean"
-    })
+    @group("owned")
     public readonly owner?: User;
 
     constructor(channel: Channel | Server, owner?: User) {
@@ -149,7 +143,7 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
 
             if (objectiveGetter) {
                 const computedProperty = watcher.infer(key as StringKeyOf<this>, objectiveGetter.bind(proxy));
-                if (initialDependencies) computedProperty.dependencies.addMany(initialDependencies?.array as any[]);
+                if (initialDependencies) computedProperty.dependencies.addMany(initialDependencies?.asArray as any[]);
 
                 this.on("delete", () => {
                     computedProperty.disabled = true;
@@ -176,8 +170,8 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
      * Deletes this entity
      */
     @method({
-        eventGroupName: "viewers",
-        parameters: [],
+        eventFor: "viewers",
+        parameters: {},
         returnType: "void"
     })
     delete(): void {

@@ -1,33 +1,7 @@
 import { Entity, EntityKey, EntityNonGroupKey, EntityGroupKey, EntitySubjectiveGetter, EntitySubjectiveSetter, EntityPropertyKey, EntityPropertySchema, EntityMethodSchema, EntityMethodKey } from ".";
 import { UserGroup } from "./UserGroup";
-import { Schema } from "./Schema";
-import { Group } from "../utils";
-
-function getPropertySchema<EntityType extends Entity>(entity: EntityType, propertyName: string) {
-    const schema = Schema.findOrCreateByName(entity.constructor.name);
-
-    return schema.properties[propertyName] ??= {
-        key: propertyName,
-        name: propertyName,
-        type: "unknown",
-        inputGroupName: UserGroup.NONE,
-        outputGroupName: UserGroup.OWNERS,
-        isAsynchronous: false
-    };
-}
-
-function getMethodSchema<EntityType extends Entity>(entity: EntityType, methodName: string) {
-    const schema = Schema.findOrCreateByName(entity.constructor.name);
-
-    return schema.methods[methodName] ??= {
-        key: methodName,
-        name: methodName,
-        returnType: "unknown",
-        parameters: [],
-        actionGroupName: UserGroup.NONE,
-        eventGroupName: UserGroup.NONE
-    };
-}
+import { EntityMethodParameterSchema, ReturnTypeName, Schema, TypeName } from "./Schema";
+import { Group, KeyValue } from "../utils";
 
 export interface Decorators<EntityType extends Entity = Entity> {
     /**
@@ -82,128 +56,141 @@ export interface Decorators<EntityType extends Entity = Entity> {
 
     /**
      * Defines a shared property for this entity.
+     * @param subjectiveProperty
+     * @returns
      */
-    property: (config?: Partial<EntityPropertySchema<EntityType>>) => (entity: EntityType, propertyName: EntityPropertyKey<EntityType>) => void;
+    property: <Type, Key extends string, Name extends EntityPropertyKey<EntityType>>(options: {
+        alias?: Key extends EntityKey<EntityType> ? never : Key,
+        get?: EntitySubjectiveGetter<EntityType, Type extends never ? EntityType[Name] : Type>,
+        set?: EntitySubjectiveSetter<EntityType, Type extends never ? EntityType[Name] : Type>,
+        type?: TypeName,
+        uses?: EntityPropertyKey<EntityType>[],
+        async?: boolean,
+        outputFor?: EntityGroupKey<EntityType>,
+        inputFor?: EntityGroupKey<EntityType>,
+    }) => (entity: EntityType, propertyName: Name) => void;
 
     /**
      * Defines a shared method for this entity.
      */
-    method: (config?: Partial<EntityMethodSchema<EntityType>>) => (entity: EntityType, propertyName: EntityMethodKey<EntityType>) => void;
-
-    /**
-     * Manually declares dependencies for this property. Whenever one of the dependencies change, all users who can read this property will receive an update of its value.
-     * @param dependencies
-     * @returns
-     */
-    uses: (...dependencies: EntityPropertyKey<EntityType>[]) => (entity: EntityType, propertyName: EntityPropertyKey<EntityType>) => void;
-
-    /**
-     * Defines a subjective property.
-     * @param subjectiveProperty
-     * @returns
-     */
-    view: <Key extends string, Name extends EntityNonGroupKey<EntityType>>(subjectiveProperty: {
-        as?: Key extends EntityKey<EntityType> ? never : Key,
-        get?: EntitySubjectiveGetter<EntityType, EntityType[Name]>,
-        set?: EntitySubjectiveSetter<EntityType, EntityType[Name]>
+    method: <Key extends string, Name extends EntityMethodKey<EntityType>>(options: {
+        alias?: Key extends EntityKey<EntityType> ? never : Key,
+        parameters?: KeyValue<TypeName>,
+        returnType?: ReturnTypeName,
+        actionFor?: EntityGroupKey<EntityType>,
+        eventFor?: EntityGroupKey<EntityType>,
     }) => (entity: EntityType, propertyName: Name) => void;
-
-    /**
-     * Makes this property asynchronous
-     */
-    async: (entity: EntityType, propertyName: EntityPropertyKey<EntityType>) => void;
 
     /**
      * Marks this user group as visible on client-side.
      *
      * This is useful for writing certain conditionals and improving type annotation on the client-side.
+     *
+     * @param alias Optional client-side alias for this group, for semantic purposes. (ex: group "allies" may be seen as "isAllies" on the client-side)
      */
-    group: (entity: EntityType, propertyName: EntityGroupKey<EntityType>) => void;
+    group: (alias?: string) => (entity: EntityType, propertyName: EntityGroupKey<EntityType>) => void;
 };
 
 const DECORATORS: Decorators<any> = {
-    uses(...dependencies: string[]) {
+    group(alias?: string) {
         return function (entity: Entity, propertyName: string) {
-            const rules = getPropertySchema(entity, propertyName);
-            if (!rules) return;
+            const schema = Schema.findOrCreateByName(entity.constructor.name);
+            schema.visibleUserGroups.add(alias ?? propertyName);
 
-            rules.initialDependencies ??= new Group<string>();
-            rules.initialDependencies.addMany(dependencies);
+            return DECORATORS.property({
+                alias,
+                get(user) {
+                    const userGroup = UserGroup.force((entity as any)[propertyName]);
+                    return userGroup.has(user);
+                },
+                outputFor: 'viewers'
+            })(entity, propertyName as never);
         }
     },
 
-    view(subjectiveProperty: {
-        as?: string,
-        get?: EntitySubjectiveGetter,
-        set?: EntitySubjectiveSetter
-    }) {
-        return DECORATORS.property({
-            key: subjectiveProperty.as,
-            subjectiveGetter: subjectiveProperty.get,
-            subjectiveSetter: subjectiveProperty.set
-        })
-    },
+    property(options) {
+        const config: Partial<EntityPropertySchema> = {
+            alias: options.alias,
+            subjectiveGetter: options.get,
+            subjectiveSetter: options.set,
+            type: options.type,
+            initialDependencies: options.uses ? new Group(...options.uses) : undefined,
+            isAsynchronous: !!options.async,
+            outputGroupName: options.outputFor,
+            inputGroupName: options.inputFor
+        };
 
-    group(entity: Entity, propertyName: string) {
-        return DECORATORS.view({
-            get(user) {
-                const userGroup = UserGroup.force((entity as any)[propertyName]);
-                return userGroup.has(user);
-            }
-        });
-    },
-
-    async() {
-        return DECORATORS.property({ isAsynchronous: true });
-    },
-
-    property(config: Omit<Partial<EntityPropertySchema>, "name" | "objectiveGetter" | "objectiveSetter"> = {}) {
         return function (entity: Entity, propertyName: string) {
-            const rules = getPropertySchema(entity, config.key ?? propertyName);
+            const schema = Schema.findOrCreateByName(entity.constructor.name);
+            const rules = schema?.createProperty(propertyName);
+
             if (!rules) return;
+
+            const specialKeys: (keyof EntityPropertySchema)[] = ["initialDependencies"];
+
+            for (const key in config) {
+                if (specialKeys.includes(key as keyof EntityPropertySchema)) continue;
+                (rules as any)[key] = (config as any)[key] ?? (rules as any)[key];
+            }
+
+            if (config.initialDependencies) {
+                rules.initialDependencies ??= new Group<string>();
+                rules.initialDependencies.addMany(config.initialDependencies);
+            }
 
             const property = Object.getOwnPropertyDescriptor(entity, propertyName);
+            rules.objectiveGetter = property?.get ?? rules.objectiveGetter;
+            rules.objectiveSetter = property?.set ?? rules.objectiveSetter;
 
-            rules.name = propertyName;
-
-            for (const key in config) {
-                (rules as any)[key] = (config as any)[key] ?? (rules as any)[key];
-            }
-
-            if (property) {
-                rules.objectiveGetter = property?.get ?? rules.objectiveGetter;
-                rules.objectiveSetter = property?.set ?? rules.objectiveSetter;
+            if (config.alias) {
+                schema.aliasMap[config.alias] = propertyName as never;
             }
         }
     },
 
-    method(config: Omit<Partial<EntityMethodSchema>, "name"> = {}) {
-        return function (entity: Entity, propertyName: string) {
-            const rules = getMethodSchema(entity, config.key ?? propertyName);
-            if (!rules) return;
+    method(options) {
+        const config: Partial<EntityMethodSchema> = {
+            alias: options.alias,
+            returnType: options.returnType,
+            parameters: options.parameters ? Object.keys(options.parameters).map(name => ({
+                name,
+                type: options.parameters?.[name] || "unknown",
+                required: true // to-do: add "required" logic
+            })) : [],
+            actionGroupName: options.actionFor,
+            eventGroupName: options.eventFor
+        };
 
-            rules.name = propertyName;
+        return function (entity: Entity, methodName: string) {
+            const schema = Schema.findOrCreateByName(entity.constructor.name);
+            const rules = schema?.createMethod(methodName);
+
+            if (!rules) return;
 
             for (const key in config) {
                 (rules as any)[key] = (config as any)[key] ?? (rules as any)[key];
+            }
+
+            if (config.alias) {
+                schema.aliasMap[config.alias] = methodName as never;
             }
         }
     },
 
     outputFor(group: string) {
-        return DECORATORS.property({ outputGroupName: group });
+        return DECORATORS.property({ outputFor: group as never });
     },
 
     inputFor(group: string) {
-        return DECORATORS.property({ inputGroupName: group });
+        return DECORATORS.property({ inputFor: group as never });
     },
 
     actionFor(group: string) {
-        return DECORATORS.method({ actionGroupName: group });
+        return DECORATORS.method({ actionFor: group as never });
     },
 
     eventFor(group: string) {
-        return DECORATORS.method({ eventGroupName: group });
+        return DECORATORS.method({ eventFor: group as never });
     },
 
     input(entity: Entity, propertyName: string) {
@@ -231,5 +218,5 @@ const DECORATORS: Decorators<any> = {
     }
 }
 
-const { input, output, hidden, shared } = DECORATORS;
-export { input, output, hidden, shared, DECORATORS };
+const { input, output, hidden, action, event, shared } = DECORATORS;
+export { input, output, hidden, action, event, shared, DECORATORS };

@@ -5,10 +5,10 @@ import { Group } from "../../lib/utils";
 describe("Group", () => {
     test("Class methods", () => {
         const group = new Group(1, 2, 3);
-        const array: typeof group.array = [];
+        const array: typeof group.asArray = [];
 
         expect(group).toBeTruthy();
-        expect(group.array).toEqual([1, 2, 3]);
+        expect(group.asArray).toEqual([1, 2, 3]);
         expect(group.count).toBe(3);
         expect(group.has(0)).toBe(false);
         expect(group.has(1)).toBe(true);
@@ -19,14 +19,14 @@ describe("Group", () => {
         group.forEach(item => {
             array.push(item);
         });
-        expect(array).toEqual(group.array);
+        expect(array).toEqual(group.asArray);
 
         group.add(1);
         group.add(4);
         group.remove(2);
 
         expect(group).toBeTruthy();
-        expect(group.array).toEqual([1, 3, 4]);
+        expect(group.asArray).toEqual([1, 3, 4]);
         expect(group.count).toBe(3);
     });
 
@@ -38,10 +38,10 @@ describe("Group", () => {
 
         const x = a.or(b, c, d);
 
-        expect(x.hasAll(...a.array)).toBe(true);
-        expect(x.hasAll(...b.array)).toBe(true);
-        expect(x.hasAll(...c.array)).toBe(true);
-        expect(x.hasAll(...d.array)).toBe(true);
+        expect(x.hasAll(...a.asArray)).toBe(true);
+        expect(x.hasAll(...b.asArray)).toBe(true);
+        expect(x.hasAll(...c.asArray)).toBe(true);
+        expect(x.hasAll(...d.asArray)).toBe(true);
         expect(x.count).toBe(8);
         expect(x.hasOnly(0, 1, 2, 3, 4, 5, 6, 7)).toBe(true);
 
@@ -84,25 +84,25 @@ describe("Group", () => {
 
         const x = a.but(b);
 
-        expect(x.hasAny(...b.array)).toBe(false);
+        expect(x.hasAny(...b.asArray)).toBe(false);
         expect(x.count).toBe(5);
         expect(x.hasOnly(1, 2, 6, 7, 8)).toBe(true);
 
         b.remove(4);
 
-        expect(x.hasAny(...b.array)).toBe(false);
+        expect(x.hasAny(...b.asArray)).toBe(false);
         expect(x.count).toBe(6);
         expect(x.hasOnly(1, 2, 4, 6, 7, 8)).toBe(true);
 
         b.add(7);
 
-        expect(x.hasAny(...b.array)).toBe(false);
+        expect(x.hasAny(...b.asArray)).toBe(false);
         expect(x.count).toBe(5);
         expect(x.hasOnly(1, 2, 4, 6, 8)).toBe(true);
 
         a.add(0);
 
-        expect(x.hasAny(...b.array)).toBe(false);
+        expect(x.hasAny(...b.asArray)).toBe(false);
         expect(x.count).toBe(6);
         expect(x.hasOnly(0, 1, 2, 4, 6, 8)).toBe(true);
     });

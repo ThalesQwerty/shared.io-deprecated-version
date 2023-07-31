@@ -1,13 +1,13 @@
-import { Channel, Entity, User, UserGroup } from "../../lib/api";
+import { Channel, Entity, Schema, User, UserGroup } from "../../lib/api";
 import { Client, Server } from "../../lib/connection";
 
 const server = new Server();
 
-const { input, output, action, event, shared, hidden, view } = Entity.decorators<TestEntity>();
+const { input, output, action, event, shared, hidden, property, group } = Entity.decorators<TestEntity>();
 class TestEntity extends Entity {
     @input @output a = 1;
 
-    @view({
+    @property({
         get() {
             return "Hello, world!"
         }
@@ -15,9 +15,15 @@ class TestEntity extends Entity {
     b = "oxe";
     c = false;
 
+    @output
+    get ab() {
+        return this.a + this.b;
+    }
+
     @shared
     test() {}
 
+    @group("groupAliasTest")
     group = new UserGroup();
 
     @action @event
@@ -34,6 +40,5 @@ const user = new User(new Client(server));
 const channel = new TestChannel(server);
 const entity = new TestEntity(channel, user);
 
-console.dir(channel.schema, { depth: null });
-console.dir(entity.schema, { depth: null });
-console.log(channel.schema.getProperty("joined"));
+console.dir(Schema.entities, { depth: null });
+console.log(entity.schema.listVisibleGroupNames());
