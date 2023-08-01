@@ -37,11 +37,11 @@ export type TypeName = SimpleTypeName|CompoundTypeName;
 export type ReturnTypeName = TypeName|"void";
 
 export interface EntityPropertySchema<EntityType extends Entity = any> {
-    name: string;
+    name: EntityPropertyKey<EntityType>;
     alias: string;
     type: TypeName;
-    inputGroupName: string;
-    outputGroupName: string;
+    inputGroupName: EntityGroupKey<EntityType>;
+    outputGroupName: EntityGroupKey<EntityType>;
     objectiveGetter?: EntityObjectiveGetter,
     objectiveSetter?: EntityObjectiveSetter,
     subjectiveGetter?: EntitySubjectiveGetter<EntityType>,
@@ -51,12 +51,12 @@ export interface EntityPropertySchema<EntityType extends Entity = any> {
 }
 
 export interface EntityMethodSchema<EntityType extends Entity = any> {
-    name: string;
+    name: EntityMethodKey<EntityType>;
     alias: string;
     parameters: EntityMethodParameterSchema[];
     returnType: ReturnTypeName;
-    actionGroupName: string;
-    eventGroupName: string;
+    actionGroupName: EntityGroupKey<EntityType>;
+    eventGroupName: EntityGroupKey<EntityType>;
 }
 
 export interface EntityMethodParameterSchema {
@@ -90,21 +90,27 @@ export class EntitySchema<EntityType extends Entity = any> {
     properties: KeyValue<EntityPropertySchema<EntityType>> = {};
     methods: KeyValue<EntityMethodSchema> = {};
     aliasMap: KeyValue<EntityKey<EntityType>> = {};
+    reverseAliasMap: KeyValue<string> = {};
+    usefulUserGroups: Group<string> = new Group();
     visibleUserGroups: Group<string> = new Group();
     prototype?: typeof Entity;
     extends?: EntitySchema;
 
-    getProperty(key: string): EntityPropertySchema|undefined {
-        const alias = this.aliasMap[key] ?? key;
-        return this.properties[alias] ?? this.extends?.getProperty(key);
+    getProperty(alias: string): EntityPropertySchema|undefined {
+        const name = this.getName(alias);
+        return this.properties[name] ?? this.extends?.getProperty(alias);
     }
 
-    getMethod(key: string): EntityMethodSchema|undefined {
-        const alias = this.aliasMap[key] ?? key;
-        return this.methods[alias] ?? this.extends?.getMethod(key);
+    getMethod(alias: string): EntityMethodSchema|undefined {
+        const name = this.getName(alias);
+        return this.methods[name] ?? this.extends?.getMethod(alias);
     }
 
-    createProperty(propertyName: string) {
+    getName(alias: string) {
+        return this.aliasMap[alias] ?? alias;
+    }
+
+    createProperty(propertyName: EntityPropertyKey<EntityType>) {
         return this.properties[propertyName] ??= {
             alias: propertyName,
             name: propertyName,
@@ -115,7 +121,7 @@ export class EntitySchema<EntityType extends Entity = any> {
         };
     }
 
-    createMethod(methodName: string) {
+    createMethod(methodName: EntityMethodKey<EntityType>) {
         return this.methods[methodName] ??= {
             alias: methodName,
             name: methodName,
@@ -126,24 +132,42 @@ export class EntitySchema<EntityType extends Entity = any> {
         };
     }
 
-    listAliases(): string[] {
-        const keys = [...Object.keys(this.properties), ...Object.keys(this.methods)];
-        const group = new Group(...keys);
+    extended(): EntitySchema {
+        const parent = this.extends?.extended();
 
-        for (const alias in this.aliasMap) {
-            const name = this.aliasMap[alias];
-            group.add(alias);
-            group.remove(name);
-        }
-
-        if (this.extends) group.addMany(this.extends.listAliases());
-        return group.asArray;
+        return parent ? {
+            ...this,
+            properties: {
+                ...parent.properties,
+                ...this.properties
+            },
+            methods: {
+                ...parent.methods,
+                ...this.methods
+            },
+            aliasMap: {
+                ...parent.aliasMap,
+                ...this.aliasMap
+            },
+            reverseAliasMap: {
+                ...parent.reverseAliasMap,
+                ...this.reverseAliasMap
+            },
+            usefulUserGroups: Group.union(parent.usefulUserGroups, this.usefulUserGroups).clone(),
+            visibleUserGroups: Group.union(parent.visibleUserGroups, this.visibleUserGroups).clone(),
+            extends: undefined
+        } : this;
     }
 
-    listVisibleGroupNames(): string[] {
-        const group = this.visibleUserGroups.clone();
-        if (this.extends) group.addMany(this.extends.listVisibleGroupNames());
-        return group.asArray;
+    listGroupAliases() {
+        const extendedSchema = this.extended();
+        const visibleUserGroups = extendedSchema.visibleUserGroups.asArray;
+        const usefulUserGroups = extendedSchema.usefulUserGroups.asArray;
+
+        return visibleUserGroups.filter(alias => {
+            const name = extendedSchema.aliasMap[alias] ?? alias;
+            return usefulUserGroups.includes(name);
+        });
     }
 
     constructor(public readonly type: string) {}

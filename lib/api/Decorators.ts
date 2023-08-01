@@ -1,6 +1,6 @@
-import { Entity, EntityKey, EntityNonGroupKey, EntityGroupKey, EntitySubjectiveGetter, EntitySubjectiveSetter, EntityPropertyKey, EntityPropertySchema, EntityMethodSchema, EntityMethodKey } from ".";
+import { Entity, EntityGroupKey, EntitySubjectiveGetter, EntitySubjectiveSetter, EntityPropertyKey, EntityPropertySchema, EntityMethodSchema, EntityMethodKey } from ".";
 import { UserGroup } from "./UserGroup";
-import { EntityMethodParameterSchema, ReturnTypeName, Schema, TypeName } from "./Schema";
+import { ReturnTypeName, Schema, TypeName } from "./Schema";
 import { Group, KeyValue } from "../utils";
 
 export interface Decorators<EntityType extends Entity = Entity> {
@@ -37,7 +37,7 @@ export interface Decorators<EntityType extends Entity = Entity> {
     /**
      * Defines a given user group on this entity as the one who's able to write into this property
      */
-    inputFor: (group: EntityGroupKey<EntityType>) => (entity: EntityType, propertyName: EntityPropertyKey<EntityType>) => void;
+    inputFor: (group: EntityGroupKey<EntityType>|`!${EntityGroupKey<EntityType>}`) => (entity: EntityType, propertyName: EntityPropertyKey<EntityType>) => void;
 
     /**
      * Defines a given user group on this entity as the one who's able to read this property
@@ -59,8 +59,8 @@ export interface Decorators<EntityType extends Entity = Entity> {
      * @param subjectiveProperty
      * @returns
      */
-    property: <Type, Key extends string, Name extends EntityPropertyKey<EntityType>>(options: {
-        alias?: Key extends EntityKey<EntityType> ? never : Key,
+    property: <Type, Name extends EntityPropertyKey<EntityType>>(options: {
+        alias?: string,
         get?: EntitySubjectiveGetter<EntityType, Type extends never ? EntityType[Name] : Type>,
         set?: EntitySubjectiveSetter<EntityType, Type extends never ? EntityType[Name] : Type>,
         type?: TypeName,
@@ -73,8 +73,8 @@ export interface Decorators<EntityType extends Entity = Entity> {
     /**
      * Defines a shared method for this entity.
      */
-    method: <Key extends string, Name extends EntityMethodKey<EntityType>>(options: {
-        alias?: Key extends EntityKey<EntityType> ? never : Key,
+    method: <Name extends EntityMethodKey<EntityType>>(options: {
+        alias?: string,
         parameters?: KeyValue<TypeName>,
         returnType?: ReturnTypeName,
         actionFor?: EntityGroupKey<EntityType>,
@@ -89,21 +89,32 @@ export interface Decorators<EntityType extends Entity = Entity> {
      * @param alias Optional client-side alias for this group, for semantic purposes. (ex: group "allies" may be seen as "isAllies" on the client-side)
      */
     group: (alias?: string) => (entity: EntityType, propertyName: EntityGroupKey<EntityType>) => void;
+
+    /**
+     * All viewers who are **not** in a given user group.
+     */
+    not: (groupAlias: EntityGroupKey<EntityType>) => EntityGroupKey<EntityType>;
 };
 
 const DECORATORS: Decorators<any> = {
+    not(groupAlias) {
+        const removedDoubles = groupAlias.replace(/!!/g, "");
+        return removedDoubles[0] === "!" ? removedDoubles.substring(1) : `!${removedDoubles}`;
+    },
+
     group(alias?: string) {
         return function (entity: Entity, propertyName: string) {
             const schema = Schema.findOrCreateByName(entity.constructor.name);
             schema.visibleUserGroups.add(alias ?? propertyName);
 
             return DECORATORS.property({
-                alias,
+                alias: alias ?? propertyName,
+                type: "boolean",
+                outputFor: 'viewers',
                 get(user) {
                     const userGroup = UserGroup.force((entity as any)[propertyName]);
                     return userGroup.has(user);
                 },
-                outputFor: 'viewers'
             })(entity, propertyName as never);
         }
     },
@@ -142,8 +153,12 @@ const DECORATORS: Decorators<any> = {
             rules.objectiveGetter = property?.get ?? rules.objectiveGetter;
             rules.objectiveSetter = property?.set ?? rules.objectiveSetter;
 
+            if (rules.inputGroupName != null) schema.usefulUserGroups.add(rules.inputGroupName);
+            if (rules.outputGroupName != null) schema.usefulUserGroups.add(rules.outputGroupName);
+
             if (config.alias) {
                 schema.aliasMap[config.alias] = propertyName as never;
+                schema.reverseAliasMap[propertyName] = config.alias;
             }
         }
     },
@@ -170,6 +185,9 @@ const DECORATORS: Decorators<any> = {
             for (const key in config) {
                 (rules as any)[key] = (config as any)[key] ?? (rules as any)[key];
             }
+
+            if (rules.actionGroupName != null) schema.usefulUserGroups.add(rules.actionGroupName);
+            if (rules.eventGroupName != null) schema.usefulUserGroups.add(rules.eventGroupName);
 
             if (config.alias) {
                 schema.aliasMap[config.alias] = methodName as never;

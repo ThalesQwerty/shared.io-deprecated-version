@@ -1,6 +1,7 @@
-import { CustomEventEmitter, Tree } from "../utils";
-import { Entity, EntityTree, User, UserGroup } from "../api";
+import { CustomEventEmitter, Group, Tree } from "../utils";
+import { Channel, Entity, EntityTree, User, UserGroup } from "../api";
 import { Client, WebSocketServer } from ".";
+import { generateClientSchema } from "../scripts/generateClientSchema";
 
 export interface ServerEvents {
     start: {},
@@ -14,11 +15,15 @@ export interface ServerEvents {
 }
 
 export interface ServerConfig {
-    port: number
+    port: number,
+    entities: (typeof Entity)[],
+    schemaFile: string
 }
 export class Server extends CustomEventEmitter<ServerEvents> {
     public readonly config: ServerConfig = {
-        port: 3000
+        port: 3000,
+        entities: [],
+        schemaFile: ""
     };
 
     /**
@@ -39,7 +44,14 @@ export class Server extends CustomEventEmitter<ServerEvents> {
         for (const key in config) {
             (this.config as any)[key] = (config as any)[key];
         }
-        console.log("config", this.config);
+
+        this.config.entities.unshift(Entity, Channel);
+        this.config.entities = new Group(...this.config.entities).asArray;
+
+        process.nextTick(() => {
+            const clientSchema = generateClientSchema(this.config.entities);
+            console.log(clientSchema);
+        });
     }
 
     /**

@@ -14,7 +14,7 @@ export interface ChannelEvents extends EntityEvents {
     }
 }
 
-const { eventFor, actionFor, group, property } = DECORATORS as Decorators<Channel>;
+const { eventFor, actionFor, group, property, not } = DECORATORS as Decorators<Channel>;
 
 export class Channel<EventList extends ChannelEvents = ChannelEvents> extends Entity<EventList> {
     /**
@@ -34,11 +34,6 @@ export class Channel<EventList extends ChannelEvents = ChannelEvents> extends En
      */
     @group("joined")
     public readonly users = new UserGroup().lock();
-
-    /**
-     * The users who are outside this channel, but can see it and attempt to join it
-     */
-    public readonly outsiders = UserGroup.difference(this.viewers, this.users);
 
     /**
      * The maximum amount of users allowed on this channel.
@@ -89,7 +84,7 @@ export class Channel<EventList extends ChannelEvents = ChannelEvents> extends En
      * @param user The user to be added.
      * @returns Whether or not the user successfully joined the channel.
      */
-    @actionFor("outsiders") @eventFor("users")
+    @actionFor(not("users")) @eventFor("users")
     join(user: User): boolean {
         // to-do: add decorators
         if (this.users.count >= this.maxUsers || this.users.has(user)) return false;

@@ -1,9 +1,7 @@
 import { Channel, Entity, Schema, User, UserGroup } from "../../lib/api";
 import { Client, Server } from "../../lib/connection";
 
-const server = new Server();
-
-const { input, output, action, event, shared, hidden, property, group } = Entity.decorators<TestEntity>();
+const { input, inputFor, output, action, event, shared, hidden, property, group } = Entity.decorators<TestEntity>();
 class TestEntity extends Entity {
     @input @output a = 1;
 
@@ -13,6 +11,7 @@ class TestEntity extends Entity {
         }
     })
     b = "oxe";
+
     c = false;
 
     @output
@@ -36,9 +35,18 @@ class TestChannel extends Channel {
     maxUsers = 5;
 }
 
+const server = new Server({
+    entities: [
+        TestEntity,
+        TestChannel
+    ]
+});
+
+
 const user = new User(new Client(server));
 const channel = new TestChannel(server);
 const entity = new TestEntity(channel, user);
 
-console.dir(Schema.entities, { depth: null });
-console.log(entity.schema.listVisibleGroupNames());
+console.dir(channel.schema.extended(), { depth: null });
+// console.dir(entity.schema, { depth: null });
+// console.log(entity.schema.listGroupAliases());

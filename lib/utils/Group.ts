@@ -15,7 +15,7 @@ export interface GroupEvents<T> {
 /**
  * Base class for groups of items. Behaves similarly to sets.
  */
-export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
+export class Group<T = any> extends CustomEventEmitter<GroupEvents<T>> {
     private items: T[] = []
 
     /**
@@ -226,7 +226,7 @@ export class Group<T> extends CustomEventEmitter<GroupEvents<T>> {
 
     constructor(...items: T[]) {
         super();
-        this.items.push(...items);
+        this.addMany(items);
 
         this.on("add", () => {
             this.emit("change", {});

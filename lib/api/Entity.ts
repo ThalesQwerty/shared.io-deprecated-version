@@ -14,6 +14,7 @@ export interface EntityEvents {
 }
 
 const { output, group, property, method } = DECORATORS as Decorators<Entity>;
+
 export class Entity<EventList extends EntityEvents = EntityEvents> extends CustomEventEmitter<EventList> implements Partial<Record<BuiltinUserGroup, User | UserGroup>> {
     /**
      * The server in which this entity can be found
@@ -127,6 +128,14 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
             });
         });
 
+        const getUserGroupByName = (name: string) => {
+            const isNegated = name[0] === "!";
+            if (isNegated) {
+                (this as any)[name] ??= UserGroup.difference(this.viewers, getUserGroupByName(name.substring(1)));
+            }
+            return UserGroup.force((this as any)[name]);
+        }
+
         for (const key in schema.properties) {
             const {
                 inputGroupName,
@@ -137,8 +146,8 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
             } = schema.properties[key];
 
             this.policy[key] = {
-                input: UserGroup.force((this as any)[inputGroupName]),
-                output: UserGroup.force((this as any)[outputGroupName])
+                input: getUserGroupByName(inputGroupName),
+                output: getUserGroupByName(outputGroupName)
             };
 
             if (objectiveGetter) {
