@@ -1,9 +1,11 @@
-import { Channel, User, UserGroup, BuiltinUserGroup, EntityPolicy, EntityPropertyKey } from ".";
-import { CustomEventEmitter, StringKeyOf, UUID, WatchedObject } from "../utils";
 import { Server } from "../connection";
-import { DECORATORS, Decorators } from "./Decorators";
-import { Schema } from "./Schema";
-import _ from "lodash";
+import { DECORATORS, Decorators, Schema, EntityPolicy, EntityPropertyKey } from "../api";
+import { UserGroup, BuiltinUserGroup } from "../data";
+import { CustomEventEmitter, WatchedObject } from "../events";
+import { UUID, StringKeyOf } from "../utils";
+import { Channel } from "./Channel";
+import { User } from "./User";
+
 export interface EntityEvents {
     delete: {},
     output: {

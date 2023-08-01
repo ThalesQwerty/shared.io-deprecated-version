@@ -1,5 +1,4 @@
-import { Channel, Entity, Schema, User, UserGroup } from "../../lib/api";
-import { Client, Server } from "../../lib/connection";
+import { Channel, Entity, User, UserGroup, Server, Client } from "../../lib";
 
 const { input, inputFor, output, action, event, shared, hidden, property, group } = Entity.decorators<TestEntity>();
 class TestEntity extends Entity {

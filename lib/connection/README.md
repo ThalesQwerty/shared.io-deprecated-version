@@ -1,0 +1,1 @@
+Folder for websocket connection and protocol related files.

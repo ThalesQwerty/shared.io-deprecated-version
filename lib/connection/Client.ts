@@ -1,6 +1,7 @@
-import _ from "lodash";
-import { CustomEventEmitter, KeyValue, UUID } from "../utils";
-import { Output, Server, WebSocket } from ".";
+import { Server, WebSocket } from ".";
+import { Output } from "../api";
+import { CustomEventEmitter } from "../events";
+import { KeyValue, UUID } from "../utils";
 
 export interface ClientEvents {
     close: {}

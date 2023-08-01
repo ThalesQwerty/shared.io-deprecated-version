@@ -1,6 +1,8 @@
-import { property } from "lodash";
-import { BuiltinUserGroup, DECORATORS, Entity, Schema } from "../api";
-import { Group, KeyValue } from "../utils";
+import { DECORATORS } from ".";
+import { BuiltinUserGroup } from "../data";
+import { Entity } from "../models";
+import { KeyValue } from "../utils";
+import { Schema } from "./Schema";
 
 export function generateClientSchema(entities: (typeof Entity)[]) {
     if (!entities.length) return "";

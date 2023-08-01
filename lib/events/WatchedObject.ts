@@ -1,5 +1,6 @@
-import { ComputedProperty, CustomEventEmitter, KeyValue, StringKeyOf } from ".";
-import _  from "lodash";
+import { StringKeyOf, KeyValue } from "../utils";
+import { ComputedProperty } from "./ComputedProperty";
+import { CustomEventEmitter } from "./CustomEventEmitter";
 
 export interface WatchedObjectEvents {
     write: {

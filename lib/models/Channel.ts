@@ -1,9 +1,9 @@
-import { UUID, GroupEvents } from "../utils";
-import { Entity, EntityEvents } from "./Entity";
-import { User, UserGroup, EntityTree } from ".";
 import { Server } from "../connection";
-import { DECORATORS, Decorators } from "./Decorators";
-import _ from "lodash";
+import { DECORATORS, Decorators } from "../api";
+import { UserGroup, EntityTree, GroupEvents } from "../data";
+import { UUID } from "../utils";
+import { EntityEvents, Entity } from "./Entity";
+import { User } from "./User";
 
 export interface ChannelEvents extends EntityEvents {
     join: {

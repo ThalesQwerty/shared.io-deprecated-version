@@ -1,4 +1,4 @@
-import { CustomEventEmitter } from "./CustomEventEmitter";
+import { CustomEventEmitter } from "../events";
 
 export interface GroupEvents<T> {
     add: {

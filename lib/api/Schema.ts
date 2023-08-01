@@ -1,6 +1,6 @@
-import { Group, KeyValue, StringKeyOf } from "../utils";
-import { Entity, User } from ".";
-import { UserGroup, BuiltinUserGroup } from "./UserGroup";
+import { BuiltinUserGroup, Group, UserGroup } from "../data";
+import { Entity, User } from "../models";
+import { StringKeyOf, KeyValue } from "../utils";
 
 export type EntityKey<EntityType extends Entity> = StringKeyOf<EntityType>;
 

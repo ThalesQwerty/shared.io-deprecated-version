@@ -1,5 +1,4 @@
-import { Channel, Entity, EntityTree } from "../../lib/api";
-import { Server } from "../../lib/connection";
+import { Channel, Entity, Server } from "../../lib";
 
 const { output } = Entity.decorators<ComputedEntity>();
 
@@ -18,18 +17,3 @@ class ComputedEntity extends Entity {
         return 2 * this.ab;
     }
 }
-
-// const entity = new ComputedEntity(new Channel(new Server()));
-// entity.on("output", event => console.log(event.key, event.value));
-
-// process.nextTick(() => {
-//     entity.a = 5;
-//     entity.b = 2;
-//     process.nextTick(() => {
-//         entity.a = 50;
-//         entity.b = -3;
-//         process.nextTick(() => {
-//             entity.c = 2;
-//         });
-//     });
-// });

@@ -1,7 +1,7 @@
-import { Entity, EntityGroupKey, EntitySubjectiveGetter, EntitySubjectiveSetter, EntityPropertyKey, EntityPropertySchema, EntityMethodSchema, EntityMethodKey } from ".";
-import { UserGroup } from "./UserGroup";
-import { ReturnTypeName, Schema, TypeName } from "./Schema";
-import { Group, KeyValue } from "../utils";
+import { EntityPropertyKey, EntityMethodKey, EntityGroupKey, EntitySubjectiveGetter, EntitySubjectiveSetter, TypeName, ReturnTypeName, Schema, EntityPropertySchema, EntityMethodSchema } from ".";
+import { UserGroup, Group } from "../data";
+import { Entity } from "../models";
+import { KeyValue } from "../utils";
 
 export interface Decorators<EntityType extends Entity = Entity> {
     /**

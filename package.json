@@ -2,7 +2,7 @@
     "name": "shared.io",
     "version": "0.0.0",
     "description": "Object-oriented websocket",
-    "main": "index.ts",
+    "main": "./lib/index.ts",
     "scripts": {
         "build": "tsc",
         "lint": "eslint --ignore-path .gitignore --ext .js,.jsx,.ts,.tsx .",

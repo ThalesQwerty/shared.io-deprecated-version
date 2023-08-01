@@ -1,4 +1,7 @@
-import { Debouncer, Group, StringKeyOf, WatchedObject, WatchedObjectEvents } from ".";
+import { Group } from "../data";
+import { StringKeyOf } from "../utils";
+import { Debouncer } from "./Debouncer";
+import { WatchedObject, WatchedObjectEvents } from "./WatchedObject";
 
 export class ComputedProperty<PropertyType = any, ObjectType extends Object = Object> {
     public readonly dependencies = new Group<StringKeyOf<ObjectType>>();

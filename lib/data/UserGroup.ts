@@ -1,6 +1,7 @@
-import { User, Entity } from ".";
-import { ViewOutput } from "../connection";
-import { Debouncer,Group } from "../utils";
+import { ViewOutput } from "../api";
+import { Debouncer } from "../events";
+import { Entity, User } from "../models";
+import { Group } from "./Group";
 
 export type BuiltinUserGroup =
     | "owner"

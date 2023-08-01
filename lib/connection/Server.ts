@@ -1,7 +1,8 @@
-import { CustomEventEmitter, Group, Tree } from "../utils";
-import { Channel, Entity, EntityTree, User, UserGroup } from "../api";
-import { Client, WebSocketServer } from ".";
-import { generateClientSchema } from "../scripts/generateClientSchema";
+import { WebSocketServer, Client } from ".";
+import { generateClientSchema } from "../api";
+import { UserGroup, EntityTree, Group } from "../data";
+import { CustomEventEmitter } from "../events";
+import { User, Entity, Channel } from "../models";
 
 export interface ServerEvents {
     start: {},
