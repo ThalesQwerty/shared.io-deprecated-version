@@ -1,14 +1,41 @@
 import { DECORATORS } from ".";
 import { BuiltinUserGroup } from "../data";
-import { Entity } from "../models";
+import { Channel, Entity } from "../models";
 import { KeyValue } from "../utils";
 import { Schema } from "./Schema";
 
 export function generateClientSchema(entities: (typeof Entity)[]) {
     if (!entities.length) return "";
 
-    let output = "";
     const entityTypes = entities.map(entity => entity.name);
+
+    const abstractClasses: string[] = [];
+    const unionTypes: string[] = [];
+
+    const entityAbstractClass = `export abstract class Entity {
+        get type() {
+            return this.constructor.name;
+        }
+
+        readonly id: string;
+        readonly owned: boolean;
+        readonly channel: string;
+
+        constructor(owned: boolean = false, channel: string = "", id: string = "") {
+            this.owned = owned;
+            this.channel = channel;
+            this.id = id;
+        }
+
+        delete() {}
+    }`;
+
+    const channelAbstractClass = `export abstract class Channel extends Entity {
+        readonly joined: boolean = false;
+
+        join() {}
+        leave() {}
+    }`;
 
     for (const typeName of entityTypes) {
         const schema = Schema.findOrCreateByName(typeName);
@@ -40,6 +67,8 @@ export function generateClientSchema(entities: (typeof Entity)[]) {
         const variations: string[] = [];
 
         console.log(typeName, groupAliases, groupCombination);
+
+        // create union type
 
         for (let i = 0; i < combinationAmount; i++) {
             const binary = i.toString(2).padStart(groupAliases.length, '0');
@@ -77,13 +106,52 @@ export function generateClientSchema(entities: (typeof Entity)[]) {
             }`);
         }
 
-        const entitySchemaOutput = `${typeDeclaration} = ${schema.extends ? `${schema.extends.type} & ` : ""}${variations.join(`
-        |`)}`;
+        unionTypes.push(`${typeDeclaration} = ${schema.extends ? `${schema.extends.type} & ` : ""}${variations.join(`
+        |`)}`);
 
-        output += `
-        ${entitySchemaOutput}
-        `;
+        // create abstract class
+
+        switch (schema.type) {
+            case "Entity":
+                abstractClasses.push(entityAbstractClass);
+                break;
+            case "Channel":
+                abstractClasses.push(channelAbstractClass);
+                break;
+            default:
+                const classDeclaration = `export abstract class ${schema.type}${schema.extends ? ` extends ${schema.extends.type}` : ""}`;
+
+                const propertyDeclarations = Object.values(schema.properties).map(property => {
+                    return `${property.alias}: ${property.type} = undefined as any;`
+                });
+
+                const methodDeclarations = Object.values(schema.methods).map(method => {
+                    const parameterDeclarations = Object.values(method.parameters).map(parameter => {
+                        return `${parameter.name}: ${parameter.required}`;
+                    });
+
+                    return `abstract ${method.alias}(${parameterDeclarations.join(", ")}): ${method.returnType};`
+                });
+
+                abstractClasses.push(`${classDeclaration} {
+                    ${propertyDeclarations.join(`
+                    `)}
+                    ${methodDeclarations.join(`
+                    `)}
+                }`);
+                break;
+        }
     }
 
-    return output;
+    return `
+        export namespace Classes {
+            ${abstractClasses.join(`
+            `)}
+        }
+
+        export namespace Types {
+            ${unionTypes.join(`
+            `)}
+        }
+    `;
 }
