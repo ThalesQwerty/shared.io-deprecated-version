@@ -1,6 +1,5 @@
-import { User, UserGroup } from "../../lib/api";
-import { Client, Server } from "../../lib/connection";
-import { Group } from "../../lib/utils";
+import { User, UserGroup, Client, Server } from "../../lib";
+import { Group } from "../../lib/data";
 
 describe("Group", () => {
     test("Class methods", () => {

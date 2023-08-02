@@ -1,4 +1,4 @@
-import { ObjectWatcher, WatchedObject, WatchedObjectEvents } from "../../lib/utils";
+import { ObjectWatcher, WatchedObject, WatchedObjectEvents } from "../../lib/events";
 
 describe("WatchedObject", () => {
     describe("Properties", () => {
@@ -268,12 +268,12 @@ describe("WatchedObject", () => {
 
             let watchedObject: WatchedObject<PrimitiveTestObject>;
             let object: PrimitiveTestObject;
-            let watcher: ObjectWatcher;
+            let watcher: ObjectWatcher<PrimitiveTestObject>;
 
             const firedEvents: WatchedObjectEvents["write"][] = [];
 
             beforeEach(() => {
-                watchedObject = new WatchedObject({
+                watchedObject = new WatchedObject<PrimitiveTestObject>({
                     a: 2,
                     b: "test",
                     c: true,
