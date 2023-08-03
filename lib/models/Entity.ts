@@ -170,6 +170,18 @@ export class Entity<EventList extends EntityEvents = EntityEvents> extends Custo
             }
         }
 
+        for (const key in schema.methods) {
+            const {
+                actionGroupName,
+                eventGroupName
+            } = schema.methods[key];
+
+            this.policy[key] = {
+                input: getUserGroupByName(actionGroupName),
+                output: getUserGroupByName(eventGroupName)
+            };
+        }
+
         this.on("delete", () => {
             watcher.removeAllListeners();
         });
