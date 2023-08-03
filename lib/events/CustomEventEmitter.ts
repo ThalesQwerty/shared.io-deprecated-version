@@ -1,17 +1,38 @@
 import { EventEmitter } from "node:events";
 import { KeyValue } from "../utils";
 
-export class CustomEventEmitter<EventList extends KeyValue = {}> extends EventEmitter implements ICustomEventEmitter<EventList> {};
+export abstract class CustomEventEmitter<EventList extends KeyValue = {}> extends EventEmitter {
+    on <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) {
+        return super.on(event, listener);
+    }
 
-export interface ICustomEventEmitter<EventList extends KeyValue = {}> extends EventEmitter {
-    on: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
-    once: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
-    addListener: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
-    removeListener: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
-    off: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
-    prependListener: <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) => this;
-    emit: <name extends keyof EventList>(event: name extends string ? name : symbol, parameters: EventList[name]) => boolean;
-    removeAllListeners: <name extends keyof EventList>(event?: name extends string ? name : symbol) => this;
-}
+    once <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) {
+        return super.once(event, listener);
+    }
+
+    addListener <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) {
+        return super.addListener(event, listener);
+    }
+
+    removeListener <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) {
+        return super.removeListener(event, listener);
+    }
+
+    off <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) {
+        return super.off(event, listener);
+    }
+
+    prependListener <name extends keyof EventList>(event: name extends string ? name : symbol, listener: (event: Event & EventList[name]) => void) {
+        return super.prependListener(event, listener);
+    }
+
+    emit <name extends keyof EventList>(event: name extends string ? name : symbol, parameters: EventList[name]) {
+        return super.emit(event, parameters);
+    }
+
+    removeAllListeners <name extends keyof EventList>(event?: name extends string ? name : symbol) {
+        return super.removeAllListeners(event);
+    }
+};
 
 export type CustomEvent<CustomEventList extends KeyValue, name extends keyof CustomEventList> = CustomEventList[name];
