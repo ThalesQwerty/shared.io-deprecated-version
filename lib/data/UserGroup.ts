@@ -1,4 +1,5 @@
 import { ViewOutput } from "../api";
+import { Client } from "../connection";
 import { Debouncer } from "../events";
 import { Entity, User } from "../models";
 import { Group } from "./Group";
@@ -44,8 +45,9 @@ export class UserGroup extends Group<User> {
      *
      * - If the value is already an user group, simply returns it.
      * - If the value is a group or an array, creates a new user group with its values
-     * - If the value is a user, returns a locked user group containing only that user
-     * - If all above fails, returns a locked empty user group
+     * - If the value is an user, returns a locked user group containing only that user
+     * - If the value is a client and has an user assigned to it, returns a locked user group containing only that user
+     * - If all above conditions fail, returns a locked empty user group
      * @param value
      * @returns
      */
@@ -54,6 +56,7 @@ export class UserGroup extends Group<User> {
             : value instanceof Group ? new UserGroup(...value.asArray)
             : value instanceof Array ? new UserGroup(...value)
             : value instanceof User ? value.asGroup
+            : value instanceof Client ? value.user?.asGroup ?? UserGroup.none
             : UserGroup.none;
     }
 
@@ -112,7 +115,7 @@ export class UserGroup extends Group<User> {
                 },
             item)) : objectiveOutputList;
 
-            user.client.send({
+            user.send({
                 type: "view",
                 data: {
                     changes: staticOutputList
@@ -127,19 +130,37 @@ export class UserGroup extends Group<User> {
         const path = entity.path.join("/");
 
         this.forEach(user => {
-            user.client.send({
-                type: "call",
-                data: {
-                    path,
-                    method: methodName,
-                    parameters,
-                    returnedValue
-                }
-            })
+            user.clients.forEach(client => {
+                client.output({
+                    type: "call",
+                    data: {
+                        path,
+                        method: methodName,
+                        parameters,
+                        returnedValue
+                    }
+                })
+            });
         });
     };
 
     public clone(): UserGroup {
         return super.clone() as UserGroup;
+    }
+
+    constructor(...users: User[]) {
+        super(...users);
+
+        for (const addedUser of users) {
+            addedUser.groups.current.add(this);
+        }
+
+        this.on("add", ({ item: addedUser }) => {
+            addedUser.groups.current.add(this);
+        });
+
+        this.on("remove", ({ item: removedUser }) => {
+            removedUser.groups.current.remove(this);
+        });
     }
 }

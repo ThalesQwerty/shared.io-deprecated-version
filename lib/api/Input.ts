@@ -4,9 +4,22 @@ import { KeyValue } from "../utils";
  * Base interface for inputs
  */
 export interface SharedIOBaseInput {
-    type: "write" | "call";
+    type: "write" | "call" | "message";
     id: string;
     data: KeyValue;
+}
+
+export interface EntityInputIndexes {
+    type: string;
+    id: string;
+
+    channel: {
+        type: string;
+        id: string;
+    } | null;
+
+    isOwned: boolean;
+    hasJoined: boolean;
 }
 
 /**
@@ -15,7 +28,7 @@ export interface SharedIOBaseInput {
  export interface WriteInput extends SharedIOBaseInput {
     type: "write";
     data: {
-        path: string,
+        entity: EntityInputIndexes
         changes: KeyValue
     }
 }
@@ -23,12 +36,18 @@ export interface SharedIOBaseInput {
 export interface CallInput extends SharedIOBaseInput {
     type: "call";
     data: {
-        path: string,
+        entity: EntityInputIndexes
         method: string,
         parameters: unknown[]
     }
 }
 
+export interface MessageInput extends SharedIOBaseInput {
+    type: "message";
+    data: KeyValue
+}
+
 export type Input =
     | WriteInput
-    | CallInput;
+    | CallInput
+    | MessageInput;

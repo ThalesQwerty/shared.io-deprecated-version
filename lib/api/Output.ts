@@ -4,7 +4,7 @@ import { KeyValue } from "../utils";
  * Base interface for outputs
  */
 export interface SharedIOBaseOutput {
-    type: "view" | "call" | "return";
+    type: "view" | "call" | "return" | "message";
     id: string;
     data: KeyValue;
 }
@@ -46,7 +46,16 @@ export interface ReturnOutput extends SharedIOBaseOutput {
     }
 }
 
+/**
+ * Sends an arbitrary message
+ */
+export interface MessageOutput extends SharedIOBaseOutput {
+    type: "message";
+    data: KeyValue;
+}
+
 export type Output =
     | ViewOutput
     | CallOutput
-    | ReturnOutput;
+    | ReturnOutput
+    | MessageOutput;

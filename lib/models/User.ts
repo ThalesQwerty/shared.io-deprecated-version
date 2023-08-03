@@ -1,7 +1,8 @@
-import { EntityKey, EntityMethodKey } from "../api";
+import { EntityInputIndexes, EntityKey, EntityMethodKey } from "../api";
 import { Client } from "../connection";
-import { UserGroup, EntityTree } from "../data";
+import { UserGroup, EntityTree, Group } from "../data";
 import { CustomEventEmitter } from "../events";
+import { KeyValue } from "../utils";
 import { Channel } from "./Channel";
 import { Entity } from "./Entity";
 
@@ -9,14 +10,14 @@ export interface UserEvents {
 
 }
 
-export class User extends CustomEventEmitter<UserEvents> {
+export class User<UserData extends KeyValue = KeyValue> extends CustomEventEmitter<UserEvents> {
     /**
      * A locked user group containing only this user.
      */
     public get asGroup() {
         return this._asGroup ??= new UserGroup(this).lock()
     }
-    private _asGroup: UserGroup|undefined;
+    private _asGroup: UserGroup | undefined;
 
     /**
      * A tree containing the channels where this user currently is
@@ -29,17 +30,101 @@ export class User extends CustomEventEmitter<UserEvents> {
     public readonly ownedEntities = new EntityTree();
 
     /**
+     * All clients associated with this group
+     */
+    public readonly clients = new Group<Client>();
+
+    public readonly profile: Partial<UserData> = {};
+
+    /**
+     * All the groups this user has been added to
+     */
+    public readonly groups = {
+        /**
+         * All groups this user is currently in
+         */
+        current: new Group<UserGroup>(),
+
+        /**
+         * All groups this user has been in before, but not currently in anymore
+         */
+        previous: new Group<UserGroup>()
+    };
+
+    constructor(client?: Client) {
+        super();
+
+        this.clients.on("add", ({ item: newClient }) => {
+            newClient.user = this;
+        });
+
+        this.clients.on("remove", ({ item: removedClient }) => {
+            if (removedClient.user === this) removedClient.user = undefined;
+        });
+
+        this.groups.current.on("add", ({ item: group }) => {
+            this.groups.previous.remove(group);
+        });
+
+        this.groups.current.on("remove", ({ item: group }) => {
+            this.groups.previous.add(group);
+        });
+
+        if (client) this.clients.add(client);
+    }
+
+    /**
+     * Sends a JSON message to this user
+     */
+    send(...params: Parameters<Client["send"]>) {
+        return this.clients.forEach(client => client.send(...params));
+    }
+
+    /**
+     * Verifies whether an user belongs to a given user group
+     */
+    belongsTo(userGroup: UserGroup) {
+        return this.groups.current.has(userGroup) ? true
+            : this.groups.previous.has(userGroup) ? false
+            : userGroup.has(this);
+    }
+
+    /**
+     * Attempts to find an entity that's visible to this user, given some indexes
+     * @param indexes Must contain:
+     * - The type and the ID of the entity
+     * - If it belongs to a channel, the type and the ID of the channel it belongs to
+     * - Whether or not this user owns the entity
+     * - Whether or not the entity is a channel and this user belongs to it
+     * @returns The found entity, or `undefined`.
+     */
+    findEntity(indexes: EntityInputIndexes) {
+        if (indexes.isOwned) {
+            return this.ownedEntities.find(indexes.type, indexes.id);
+        }
+        else if (indexes.hasJoined) {
+            return this.joinedChannels.find(indexes.type, indexes.id);
+        }
+        else if (indexes.channel) {
+            return this.joinedChannels.findRecursive([indexes.channel.type, indexes.channel.id], [indexes.type, indexes.id]);
+        }
+        else {
+            return undefined;
+        }
+    }
+
+    /**
      * Verifies whether or not this user is allowed to execute an INPUT or OUTPUT action on a property of a given entity
      * @param action Writing values and calling functions are considered `"input"` actions, while reading values and listening to function calls are considered `"output"` actions
      * @param entity The entity that will suffer the attempt
-     * @param property The name of the wanted property or method from the entity
+     * @param key The name of the wanted property or method from the entity
      */
-    can<EntityType extends Entity = Entity>(action: "input"|"output", entity: EntityType, property: EntityKey<EntityType>) {
+    can<EntityType extends Entity = Entity>(action: "input" | "output", entity: EntityType, key: EntityKey<EntityType>) {
         const user = this;
-        const allowedGroup = entity.policy[property]?.[action];
+        const allowedGroup = entity.policy[key]?.[action];
         if (!allowedGroup) return false;
 
-        return allowedGroup.has(user);
+        return user.belongsTo(allowedGroup);
     }
 
     /**
@@ -47,9 +132,9 @@ export class User extends CustomEventEmitter<UserEvents> {
      * @param channel
      * @returns `true` if user successfully joined the channel, `false` otherwise.
      */
-    join (channel: Channel): boolean {
+    join(channel: Channel): boolean {
         this.call(channel, "join", [this]);
-        return channel.users.has(this);
+        return this.belongsTo(channel.users);
     }
 
     /**
@@ -57,9 +142,9 @@ export class User extends CustomEventEmitter<UserEvents> {
      * @param channel
      * @returns `true` if user successfully left the channel, `false` otherwise.
      */
-    leave (channel: Channel): boolean {
+    leave(channel: Channel): boolean {
         this.call(channel, "leave", [this]);
-        return !channel.users.has(this);
+        return !this.belongsTo(channel.users);
     }
 
     /**
@@ -128,9 +213,5 @@ export class User extends CustomEventEmitter<UserEvents> {
         returnedValue: EntityType[Key] extends (...args: any[]) => any ? ReturnType<EntityType[Key]> : never,
     ) {
         // to-do
-    }
-
-    constructor (public readonly client: Client) {
-        super();
     }
 }
