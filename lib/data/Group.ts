@@ -8,8 +8,7 @@ export interface GroupEvents<T> {
     remove: {
         item: T,
         group: Group<T>
-    },
-    change: {}
+    }
 }
 
 /**
@@ -153,7 +152,7 @@ export class Group<T = any> extends CustomEventEmitter<GroupEvents<T>> {
      * Executes a function for each item in this group
      */
     get forEach() {
-        return this.items.forEach.bind(this.items);
+        return this.items.map.bind(this.items);
     }
 
     /**
@@ -227,14 +226,6 @@ export class Group<T = any> extends CustomEventEmitter<GroupEvents<T>> {
     constructor(...items: T[]) {
         super();
         this.addMany(items);
-
-        this.on("add", () => {
-            this.emit("change", {});
-        });
-
-        this.on("remove", () => {
-            this.emit("change", {});
-        });
     }
 
     /**
