@@ -33,7 +33,7 @@ export class Channel<EventList extends ChannelEvents = ChannelEvents> extends En
      * The users who are in this channel
      */
     @group("joined")
-    public readonly users = new UserGroup().lock();
+    public readonly users = new UserGroup();
 
     /**
      * The maximum amount of users allowed on this channel.

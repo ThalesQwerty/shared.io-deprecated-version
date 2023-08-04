@@ -66,8 +66,6 @@ export function generateClientSchema(entities: (typeof Entity)[]) {
         const typeDeclaration = `export type ${schema.type}`;
         const variations: string[] = [];
 
-        console.log(typeName, groupAliases, groupCombination);
-
         // create union type
 
         for (let i = 0; i < combinationAmount; i++) {

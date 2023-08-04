@@ -65,7 +65,7 @@ export class Client extends CustomEventEmitter<ClientEvents> {
 
         switch (input.type) {
             case "call":
-                this.user.call<any, string>(entity, input.data.method, input.data.parameters);
+                this.user.call<any, string>(entity, input.data.method, input.data.parameters, this);
                 break;
             case "write":
                 for (const key in input.data.changes) {

@@ -1,32 +1,24 @@
 import { Channel, Entity, User, UserGroup, Server, Client } from "../../lib";
 
 const { input, inputFor, output, action, event, shared, hidden, property, group } = Entity.decorators<TestEntity>();
+
 class TestEntity extends Entity {
-    @input @output a = 1;
+    @input @output a: number = 1;
+    b: number = 2;
 
-    @property({
-        get() {
-            return "Hello, world!"
-        }
-    })
-    b = "oxe";
+    c: boolean = false;
 
-    c = false;
+    @output wololo: number[] = [1, 2, 3];
 
     @output
-    get ab() {
+    get ab(): number {
         return this.a + this.b;
     }
 
     @shared
-    test() {}
-
-    @group("groupAliasTest")
-    group = new UserGroup();
-
-    @action @event
-    delete(user?: User) {
-        super.delete();
+    sum(a: number, user: User, b: number, client: Client): number {
+        console.log("sum", arguments);
+        return a + b;
     }
 }
 
@@ -41,11 +33,15 @@ const server = new Server({
     ]
 });
 
-
-const user = new User(new Client(server));
+const client = new Client(server);
+const user = new User(client);
 const channel = new TestChannel(server);
 const entity = new TestEntity(channel, user);
 
-console.dir(channel.schema.extended(), { depth: null });
+channel.join(user);
+user.call(entity, "sum", [1, 2] as any, client);
+
+// console.dir(channel.schema.extended(), { depth: null });
 // console.dir(entity.schema, { depth: null });
 // console.log(entity.schema.listGroupAliases());
+// console.log(entity.schema);

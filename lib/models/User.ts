@@ -174,10 +174,30 @@ export class User<UserData extends KeyValue = KeyValue> extends CustomEventEmitt
     call<EntityType extends Entity, Key extends EntityMethodKey<EntityType>>(
         entity: EntityType,
         methodName: Key,
-        parameters: EntityType[Key] extends (...args: any[]) => any ? Parameters<EntityType[Key]> : never[]
+        parameters: EntityType[Key] extends (...args: any[]) => any ? Parameters<EntityType[Key]> : never[],
+        client?: Client
     ) {
         if (this.can("input", entity, methodName)) {
-            (entity as any)[methodName](...parameters, this);
+            const methodSchema = entity.schema.getMethod(methodName);
+            if (!methodSchema) return;
+
+            const newParameters: unknown[] = [];
+
+            let parameterIndex = 0;
+            for (const parameterSchema of methodSchema.parameters) {
+                if (parameterSchema.isUser) {
+                    newParameters.push(this);
+                }
+                else if (parameterSchema.isClient) {
+                    newParameters.push(client);
+                }
+                else {
+                    newParameters.push(parameters[parameterIndex]);
+                    parameterIndex ++;
+                }
+            }
+
+            (entity as any)[methodName](...newParameters);
         }
     }
 

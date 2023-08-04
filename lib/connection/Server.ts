@@ -51,7 +51,6 @@ export class Server extends CustomEventEmitter<ServerEvents> {
 
         process.nextTick(() => {
             const clientSchema = generateClientSchema(this.config.entities);
-            console.log(clientSchema);
         });
     }
 
