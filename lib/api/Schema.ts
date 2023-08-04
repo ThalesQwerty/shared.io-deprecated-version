@@ -63,6 +63,8 @@ export interface EntityMethodParameterSchema {
     name: string;
     type: TypeName;
     required: boolean;
+    isUser: boolean;
+    isClient: boolean;
 }
 
 

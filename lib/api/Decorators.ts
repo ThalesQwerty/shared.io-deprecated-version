@@ -1,7 +1,9 @@
 import { EntityPropertyKey, EntityMethodKey, EntityGroupKey, EntitySubjectiveGetter, EntitySubjectiveSetter, TypeName, ReturnTypeName, Schema, EntityPropertySchema, EntityMethodSchema } from ".";
+import { Client } from "../connection";
 import { UserGroup, Group } from "../data";
-import { Entity } from "../models";
+import { Entity, User } from "../models";
 import { KeyValue } from "../utils";
+import "reflect-metadata";
 
 export interface Decorators<EntityType extends Entity = Entity> {
     /**
@@ -22,17 +24,17 @@ export interface Decorators<EntityType extends Entity = Entity> {
     /**
      * Allows this entity's owner to call this method
      */
-    action: (entity: EntityType, propertyName: EntityMethodKey<EntityType>) => void;
+    action: (entity: EntityType, propertyName: EntityMethodKey<EntityType>, descriptor: PropertyDescriptor) => void;
 
     /**
      * Allows this entity's viewers to listen to this function's calls
      */
-    event: (entity: EntityType, propertyName: EntityMethodKey<EntityType>) => void;
+    event: (entity: EntityType, propertyName: EntityMethodKey<EntityType>, descriptor: PropertyDescriptor) => void;
 
     /**
      * Allows this entity's viewers to call this method
      */
-    shared: (entity: EntityType, propertyName: EntityMethodKey<EntityType>) => void;
+    shared: (entity: EntityType, propertyName: EntityMethodKey<EntityType>, descriptor: PropertyDescriptor) => void;
 
     /**
      * Defines a given user group on this entity as the one who's able to write into this property
@@ -47,12 +49,12 @@ export interface Decorators<EntityType extends Entity = Entity> {
     /**
      * Defines a given user group on this entity as the one who's able to call this function
      */
-    actionFor: (group: EntityGroupKey<EntityType>) => (entity: EntityType, propertyName: EntityMethodKey<EntityType>) => void;
+    actionFor: (group: EntityGroupKey<EntityType>) => (entity: EntityType, propertyName: EntityMethodKey<EntityType>, descriptor: PropertyDescriptor) => void;
 
     /**
      * Defines a given user group on this entity as the one who's able to listen to this function's calls
      */
-    eventFor: (group: EntityGroupKey<EntityType>) => (entity: EntityType, propertyName: EntityMethodKey<EntityType>) => void;
+    eventFor: (group: EntityGroupKey<EntityType>) => (entity: EntityType, propertyName: EntityMethodKey<EntityType>, descriptor: PropertyDescriptor) => void;
 
     /**
      * Defines a shared property for this entity.
@@ -79,7 +81,7 @@ export interface Decorators<EntityType extends Entity = Entity> {
         returnType?: ReturnTypeName,
         actionFor?: EntityGroupKey<EntityType>,
         eventFor?: EntityGroupKey<EntityType>,
-    }) => (entity: EntityType, propertyName: Name) => void;
+    }) => (entity: EntityType, propertyName: Name, descriptor: PropertyDescriptor) => void;
 
     /**
      * Marks this user group as visible on client-side.
@@ -134,8 +136,15 @@ const DECORATORS: Decorators<any> = {
         return function (entity: Entity, propertyName: string) {
             const schema = Schema.findOrCreateByName(entity.constructor.name);
             const rules = schema?.createProperty(propertyName);
-
             if (!rules) return;
+
+            const type = Reflect.getMetadata(
+                "design:type",
+                entity,
+                propertyName
+            )?.name.toLowerCase();
+
+            if (type) rules.type = type;
 
             const specialKeys: (keyof EntityPropertySchema)[] = ["initialDependencies"];
 
@@ -170,17 +179,47 @@ const DECORATORS: Decorators<any> = {
             parameters: options.parameters ? Object.keys(options.parameters).map(name => ({
                 name,
                 type: options.parameters?.[name] || "unknown",
-                required: true // to-do: add "required" logic
-            })) : [],
+                required: true, // to-do: add "required" logic
+                isClient: false,
+                isUser: false
+            })) : undefined,
             actionGroupName: options.actionFor,
             eventGroupName: options.eventFor
         };
 
-        return function (entity: Entity, methodName: string) {
+        return function (entity: Entity, methodName: string, descriptor: PropertyDescriptor) {
+            const returnType = Reflect.getMetadata(
+                "design:returntype",
+                entity,
+                methodName
+            )?.name?.toLowerCase();
+
+            const parameterTypes = Reflect.getMetadata(
+                "design:paramtypes",
+                entity,
+                methodName
+            ) as Function[];
+
             const schema = Schema.findOrCreateByName(entity.constructor.name);
             const rules = schema?.createMethod(methodName);
-
             if (!rules) return;
+
+            if (returnType) rules.returnType = returnType;
+
+            for (let i = 0; i < parameterTypes.length; i++) {
+                const type = parameterTypes[i];
+                const original = rules.parameters[i] as (typeof rules.parameters)[number]|undefined;
+
+                const parameterSchema = {
+                    name: original?.name ?? "",
+                    type: type.name.toLowerCase() as TypeName ?? original?.type ?? "unknown",
+                    isUser: type === User,
+                    isClient: type === Client,
+                    required: original?.required ?? true
+                };
+
+                rules.parameters[i] ??= parameterSchema;
+            }
 
             for (const key in config) {
                 (rules as any)[key] = (config as any)[key] ?? (rules as any)[key];
@@ -223,16 +262,16 @@ const DECORATORS: Decorators<any> = {
         return DECORATORS.outputFor("owner")(entity, propertyName as never);
     },
 
-    action(entity: Entity, propertyName: string) {
-        return DECORATORS.actionFor("owner")(entity, propertyName as never);
+    action(entity: Entity, propertyName: string, descriptor: PropertyDescriptor) {
+        return DECORATORS.actionFor("owner")(entity, propertyName as never, descriptor);
     },
 
-    event(entity: Entity, propertyName: string) {
-        return DECORATORS.eventFor("viewers")(entity, propertyName as never);
+    event(entity: Entity, propertyName: string, descriptor: PropertyDescriptor) {
+        return DECORATORS.eventFor("viewers")(entity, propertyName as never, descriptor);
     },
 
-    shared(entity: Entity, propertyName: string) {
-        return DECORATORS.actionFor("viewers")(entity, propertyName as never);
+    shared(entity: Entity, propertyName: string, descriptor: PropertyDescriptor) {
+        return DECORATORS.actionFor("viewers")(entity, propertyName as never, descriptor);
     }
 }
 
