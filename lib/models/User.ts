@@ -2,7 +2,7 @@ import { EntityInputIndexes, EntityKey, EntityMethodKey } from "../api";
 import { Client } from "../connection";
 import { UserGroup, EntityTree, Group } from "../data";
 import { CustomEventEmitter } from "../events";
-import { KeyValue } from "../utils";
+import { KeyValue, ExcludeFromTuple } from "../utils";
 import { Channel } from "./Channel";
 import { Entity } from "./Entity";
 
@@ -133,7 +133,7 @@ export class User<UserData extends KeyValue = KeyValue> extends CustomEventEmitt
      * @returns `true` if user successfully joined the channel, `false` otherwise.
      */
     join(channel: Channel): boolean {
-        this.call(channel, "join", [this]);
+        this.call(channel, "join", []);
         return this.belongsTo(channel.users);
     }
 
@@ -143,7 +143,7 @@ export class User<UserData extends KeyValue = KeyValue> extends CustomEventEmitt
      * @returns `true` if user successfully left the channel, `false` otherwise.
      */
     leave(channel: Channel): boolean {
-        this.call(channel, "leave", [this]);
+        this.call(channel, "leave", []);
         return !this.belongsTo(channel.users);
     }
 
@@ -174,7 +174,7 @@ export class User<UserData extends KeyValue = KeyValue> extends CustomEventEmitt
     call<EntityType extends Entity, Key extends EntityMethodKey<EntityType>>(
         entity: EntityType,
         methodName: Key,
-        parameters: EntityType[Key] extends (...args: any[]) => any ? Parameters<EntityType[Key]> : never[],
+        parameters: EntityType[Key] extends (...args: any[]) => any ? ExcludeFromTuple<Parameters<EntityType[Key]>, User|Client> : never[],
         client?: Client
     ) {
         if (this.can("input", entity, methodName)) {

@@ -39,7 +39,7 @@ const channel = new TestChannel(server);
 const entity = new TestEntity(channel, user);
 
 channel.join(user);
-user.call(entity, "sum", [1, 2] as any, client);
+user.call(entity, "sum", [1, 2], client);
 
 // console.dir(channel.schema.extended(), { depth: null });
 // console.dir(entity.schema, { depth: null });
