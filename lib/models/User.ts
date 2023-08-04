@@ -1,4 +1,4 @@
-import { EntityInputIndexes, EntityKey, EntityMethodKey } from "../api";
+import { EntityInputIndexes, EntityKey, EntityMethodKey, EntityPropertyKey } from "../api";
 import { Client } from "../connection";
 import { UserGroup, EntityTree, Group } from "../data";
 import { CustomEventEmitter } from "../events";
@@ -149,18 +149,24 @@ export class User<UserData extends KeyValue = KeyValue> extends CustomEventEmitt
 
     /**
      * Attempts to write a new value into an entity's property
-     * @param entity
-     * @param key
-     * @param newValue
      * @returns `true` if value has been sucessfully written, `false` otherwise.
      */
-    write<EntityType extends Entity, Key extends EntityMethodKey<EntityType>>(
+    write<EntityType extends Entity, Key extends EntityPropertyKey<EntityType>>(
         entity: EntityType,
-        key: Key,
-        newValue: EntityType[Key]
+        propertyName: Key,
+        value: EntityType[Key]
     ) {
-        if (this.can("input", entity, key as EntityKey<EntityType>)) {
-            (entity as any)[key] = newValue;
+        if (this.can("input", entity, propertyName as EntityKey<EntityType>)) {
+            const propertySchema = entity.schema.getProperty(propertyName);
+            if (!propertySchema) return;
+
+            const { subjectiveSetter } = propertySchema;
+
+            if (subjectiveSetter) {
+                subjectiveSetter.call(entity, value, this);
+            } else {
+                (entity as any)[propertyName] = value;
+            }
         }
     }
 
